@@ -96,6 +96,9 @@ class OrbitDreamService : DreamService(), SurfaceHolder.Callback {
 
         // ── Background ────────────────────────────────────────────────────────
         val bgBitmap: Bitmap? = when (p.bgMode) {
+            OrbitPrefs.BG_WALLPAPER, OrbitPrefs.BG_BLUR_WALLPAPER -> {
+                getWallpaperBitmap(this@OrbitDreamService, p.bgMode == OrbitPrefs.BG_BLUR_WALLPAPER)
+            }
             OrbitPrefs.BG_IMAGE -> {
                 p.bgImageUri?.let { uri -> loadBitmapFromUri(uri) }
             }
