@@ -1,0 +1,21 @@
+Things fall. Balls go into a pit.
+OLED burn-in is scary. This helps.
+Now on Android
+
+## Whats is this?
+- A Windows & Android screensaver where physics-simulated orbs fall and pile up in an endless ball pit.
+- Inspired by the ending of Orbit — an extreme demon in Geometry Dash by Mindcap, verified by Zoink.
+- Built with C++, Kotlin, Box2D physics, and no free time.
+- Android port uses Kotlin + JNI + EGL/GLES2 — runs as a native Android Dream Service screensaver.
+- Configurable — orb count, speed, backgrounds, custom textures, FPS cap, and more.
+
+
+## Android Installation
+1- Download the APK
+2- Allow installation from unknown sources when prompted — tap Install anyway.
+3- GScroll down and select "Open Android Screensaver Settings"
+4- Open the Orbit app to configure orbs, speed, background, and more.
+
+credits:
+- Mindcap: Creator of "Orbit" — the extreme demon in Geometry Dash that inspired this whole project.
+- MalikHw47(me): creator of this
