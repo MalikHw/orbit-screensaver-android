@@ -37,6 +37,12 @@ jobs:
       - name: Copy orb6 to drawable for splash and monochrome icon
         run: cp app/src/main/assets/orb6.png app/src/main/res/drawable/orb6.png
 
+      - name: Move launcher icons to mipmap
+        run: |
+          mkdir -p app/src/main/res/mipmap-hdpi
+          cp app/src/main/res/drawable/ic_launcher.png       app/src/main/res/mipmap-hdpi/ic_launcher.png
+          cp app/src/main/res/drawable/ic_launcher_round.png app/src/main/res/mipmap-hdpi/ic_launcher_round.png
+
       - name: Generate gradlew if missing
         run: |
           if [ ! -f gradlew ]; then
