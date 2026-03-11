@@ -41,11 +41,6 @@ jobs:
           fi
           chmod +x gradlew
 
-      - name: Build release APK
-        run: ./gradlew assembleRelease --stacktrace
-        env:
-          NDK_VERSION: "26.3.11579264"
-
       - name: Generate debug keystore
         run: |
           mkdir -p ~/.android
@@ -58,13 +53,20 @@ jobs:
             -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      - name: Sign APK (debug key)
+      - name: Build release APK
+        run: ./gradlew assembleRelease --stacktrace
+        env:
+          NDK_VERSION: "26.3.11579264"
+
+      - name: Find and sign APK
         run: |
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "Found APK: $APK"
           $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)/apksigner sign \
             --ks ~/.android/debug.keystore \
             --ks-pass pass:android \
             --out orbit-screensaver.apk \
-            app/build/outputs/apk/release/app-release-unsigned.apk
+            "$APK"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
