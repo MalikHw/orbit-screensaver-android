@@ -171,20 +171,6 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
                     speed = it.toInt()
                 }
                 Spacer(Modifier.height(8.dp))
-                LabeledSlider("FPS: $fps", fps.toFloat(), 10f, 240f) {
-                    fps = it.toInt()
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(30, 60, 120, 144, 240).forEach { f ->
-                        FilterChip(
-                            selected = fps == f,
-                            onClick  = { fps = f },
-                            label    = { Text("$f") }
-                        )
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
