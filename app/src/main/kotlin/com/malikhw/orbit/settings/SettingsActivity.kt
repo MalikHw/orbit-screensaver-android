@@ -258,9 +258,7 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
                 val bgOptions = listOf(
                     "Black" to OrbitPrefs.BG_BLACK,
                     "Color" to OrbitPrefs.BG_COLOR,
-                    "Image" to OrbitPrefs.BG_IMAGE,
-                    "Wallpaper" to OrbitPrefs.BG_WALLPAPER,
-                    "Blurred Wallpaper" to OrbitPrefs.BG_BLUR_WALLPAPER
+                    "Image" to OrbitPrefs.BG_IMAGE
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     bgOptions.forEach { (label, value) ->
