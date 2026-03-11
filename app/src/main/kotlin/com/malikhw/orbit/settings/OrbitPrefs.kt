@@ -13,8 +13,6 @@ class OrbitPrefs(context: Context) {
         const val BG_BLACK          = 0
         const val BG_COLOR          = 1
         const val BG_IMAGE          = 2
-        const val BG_WALLPAPER      = 3
-        const val BG_BLUR_WALLPAPER = 4
 
         private const val PREFS_NAME = "orbit_settings"
     }
