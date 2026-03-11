@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace 'com.mhw47.orbit-screensaver'
+    namespace 'com.malikhw.orbit'
     compileSdk 34
 
     defaultConfig {
