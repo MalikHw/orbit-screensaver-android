@@ -3,13 +3,13 @@ name: Build Android APK
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.version.outputs.tag }}
+      signed: ${{ steps.sign.outputs.signed }}
 
     steps:
       - uses: actions/checkout@v4
@@ -40,11 +40,11 @@ jobs:
 
       - name: Create monochrome icon
         run: |
-          cat > app/src/main/res/drawable/ic_launcher_monochrome.xml << 'EOF'
+          cat > app/src/main/res/drawable/ic_launcher_monochrome.xml << 'XMLEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <bitmap xmlns:android="http://schemas.android.com/apk/res/android"
               android:src="@drawable/orb6" />
-          EOF
+          XMLEOF
 
       - name: Move launcher icons to mipmap
         run: |
@@ -59,26 +59,62 @@ jobs:
           fi
           chmod +x gradlew
 
-      - name: Decode keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > orbit-release.keystore
-
       - name: Build release APK
         run: ./gradlew assembleRelease --stacktrace
         env:
           NDK_VERSION: "26.3.11579264"
 
-      - name: Find and sign APK
+      - name: Sign APK
+        id: sign
         run: |
           APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
           echo "Found APK: $APK"
-          $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)/apksigner sign \
-            --ks orbit-release.keystore \
-            --ks-pass pass:${{ secrets.KEYSTORE_PASS }} \
-            --ks-key-alias orbit \
-            --key-pass pass:${{ secrets.KEY_PASS }} \
-            --out orbit-screensaver.apk \
-            "$APK"
+          BUILD_TOOLS=$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)
+          SIGNED=true
+
+          # Try release keystore if secret is set
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > orbit-release.keystore
+            if keytool -list -keystore orbit-release.keystore \
+                -storepass "${{ secrets.KEYSTORE_PASS }}" \
+                -alias orbit 2>/dev/null; then
+              echo "Using release keystore"
+              $BUILD_TOOLS/apksigner sign \
+                --ks orbit-release.keystore \
+                --ks-pass pass:${{ secrets.KEYSTORE_PASS }} \
+                --ks-key-alias orbit \
+                --key-pass pass:${{ secrets.KEY_PASS }} \
+                --out orbit-screensaver.apk \
+                "$APK"
+            else
+              echo "Release keystore invalid, falling back to debug"
+              SIGNED=false
+            fi
+          else
+            echo "No keystore secret, using debug"
+            SIGNED=false
+          fi
+
+          if [ "$SIGNED" = "false" ]; then
+            # Generate a fresh debug keystore
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 \
+              -validity 9999 \
+              -storepass android \
+              -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US"
+            $BUILD_TOOLS/apksigner sign \
+              --ks debug.keystore \
+              --ks-pass pass:android \
+              --ks-key-alias androiddebugkey \
+              --key-pass pass:android \
+              --out orbit-screensaver.apk \
+              "$APK"
+          fi
+
+          echo "signed=$SIGNED" >> $GITHUB_OUTPUT
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -99,10 +135,19 @@ jobs:
           name: orbit-screensaver-apk
           path: artifacts/
 
+      - name: Set release title
+        id: title
+        run: |
+          if [ "${{ needs.build.outputs.signed }}" = "true" ]; then
+            echo "name=AUTOBUILD ${{ needs.build.outputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=AUTOBUILD ${{ needs.build.outputs.tag }} (Debug)" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.build.outputs.tag }}
-          name: AUTOBUILD ${{ needs.build.outputs.tag }}
+          name: ${{ steps.title.outputs.name }}
           body: autofuckingbuilt (android edition)
           files: artifacts/orbit-screensaver.apk
