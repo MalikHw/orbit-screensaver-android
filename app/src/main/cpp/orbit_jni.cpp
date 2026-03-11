@@ -1,5 +1,5 @@
 // orbit_jni.cpp — Android port of orbit screensaver
-// SurfaceView → ANativeWindow → EGL → GLES2 + Box2D
+// SurfaceView → ANativeWindow → EGL → GLES2 + Box2D lol
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
