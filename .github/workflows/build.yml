@@ -34,6 +34,9 @@ jobs:
         run: |
           echo "y" | sdkmanager "ndk;26.3.11579264" "cmake;3.22.1"
 
+      - name: Copy orb6 to drawable for splash and monochrome icon
+        run: cp app/src/main/assets/orb6.png app/src/main/res/drawable/orb6.png
+
       - name: Generate gradlew if missing
         run: |
           if [ ! -f gradlew ]; then
