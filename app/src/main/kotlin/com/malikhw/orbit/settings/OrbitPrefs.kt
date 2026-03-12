@@ -14,12 +14,18 @@ class OrbitPrefs(context: Context) {
         const val BG_COLOR          = 1
         const val BG_IMAGE          = 2
 
+        // Orientation constants — map to ActivityInfo.SCREEN_ORIENTATION_*
+        const val ORIENT_PORTRAIT           = 0  // normal portrait
+        const val ORIENT_LANDSCAPE          = 1  // landscape
+        const val ORIENT_REVERSE_LANDSCAPE  = 2  // reversed landscape
+        const val ORIENT_REVERSE_PORTRAIT   = 3  // reversed portrait
+
         private const val PREFS_NAME = "orbit_settings"
     }
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    // ── Getters ───────────────────────────────────────────────────────────────
+    // ── Getters / Setters ─────────────────────────────────────────────────────
 
     var speed: Int
         get()  = prefs.getInt("speed", 10)
@@ -74,4 +80,12 @@ class OrbitPrefs(context: Context) {
     var autoUpdateCheck: Boolean
         get()  = prefs.getBoolean("auto_update_check", true)
         set(v) = prefs.edit { putBoolean("auto_update_check", v) }
+
+    /**
+     * Screen orientation for the screensaver.
+     * One of ORIENT_PORTRAIT, ORIENT_LANDSCAPE, ORIENT_REVERSE_LANDSCAPE, ORIENT_REVERSE_PORTRAIT.
+     */
+    var orientation: Int
+        get()  = prefs.getInt("orientation", ORIENT_PORTRAIT)
+        set(v) = prefs.edit { putInt("orientation", v) }
 }
