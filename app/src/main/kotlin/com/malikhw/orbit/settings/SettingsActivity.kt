@@ -49,7 +49,8 @@ class SettingsActivity : ComponentActivity() {
 
     private fun onCheckUpdate() {
         lifecycleScope.launch {
-            UpdateChecker.fetchLatest()
+            val info = UpdateChecker.fetchLatest()
+            // result is handled inside the composable via state
         }
     }
 }
@@ -92,7 +93,6 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
     var cubeChance  by remember { mutableIntStateOf(prefs.cubeChance) }
     var bgImageUri  by remember { mutableStateOf(prefs.bgImageUri) }
     var cubeUri     by remember { mutableStateOf(prefs.cubeImageUri) }
-    var gravityDir  by remember { mutableIntStateOf(prefs.gravityDir) }
 
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
     var saveToast   by remember { mutableStateOf(false) }
@@ -119,18 +119,18 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
         }
     }
 
+    // save helper
     fun save() {
-        prefs.speed       = speed
-        prefs.fps         = fps
-        prefs.bgMode      = bgMode
-        prefs.bgColorR    = bgColor.red
-        prefs.bgColorG    = bgColor.green
-        prefs.bgColorB    = bgColor.blue
-        prefs.noGround    = noGround
-        prefs.orbScale    = orbScale
-        prefs.orbCount    = orbCount
-        prefs.cubeChance  = cubeChance
-        prefs.gravityDir  = gravityDir
+        prefs.speed      = speed
+        prefs.fps        = fps
+        prefs.bgMode     = bgMode
+        prefs.bgColorR   = bgColor.red
+        prefs.bgColorG   = bgColor.green
+        prefs.bgColorB   = bgColor.blue
+        prefs.noGround   = noGround
+        prefs.orbScale   = orbScale
+        prefs.orbCount   = orbCount
+        prefs.cubeChance = cubeChance
         saveToast = true
     }
 
@@ -164,16 +164,6 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-
-            // ── Display ───────────────────────────────────────────────────────
-            SectionCard(title = "Display") {
-                Text("Gravity direction", style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(8.dp))
-                GravityDropdown(
-                    selected = gravityDir,
-                    onSelect = { gravityDir = it }
-                )
-            }
 
             // ── Physics ───────────────────────────────────────────────────────
             SectionCard(title = "Physics") {
@@ -308,9 +298,7 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             } else {
-                                Text("None selected",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.Gray)
+                                Text("None selected", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                             }
                         }
                         OutlinedButton(onClick = { bgImagePicker.launch("image/*") }) {
@@ -378,13 +366,13 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
             // ── Links ─────────────────────────────────────────────────────────
             SectionCard(title = "Author") {
                 val links = listOf(
-                    "Website"  to "https://malikhw.github.io",
-                    "YouTube"  to "https://youtube.com/@MalikHw47",
-                    "GitHub"   to "https://github.com/MalikHw",
-                    "Twitch"   to "https://twitch.tv/MalikHw47",
-                    "Discord"  to "https://discord.gg/G9bZ92eg2n",
-                    "Ko-fi"    to "https://ko-fi.com/malikhw47",
-                    "Throne"   to "https://throne.com/MalikHw47",
+                    "Website"       to "https://malikhw.github.io",
+                    "YouTube"       to "https://youtube.com/@MalikHw47",
+                    "GitHub"        to "https://github.com/MalikHw",
+                    "Twitch"        to "https://twitch.tv/MalikHw47",
+                    "Discord"       to "https://discord.gg/G9bZ92eg2n",
+                    "Ko-fi"         to "https://ko-fi.com/malikhw47",
+                    "Throne"        to "https://throne.com/MalikHw47",
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     links.chunked(3).forEach { row ->
@@ -479,78 +467,20 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
     }
 }
 
-// ── Gravity direction dropdown ────────────────────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun GravityDropdown(selected: Int, onSelect: (Int) -> Unit) {
-    val options = listOf(
-        OrbitPrefs.GRAVITY_DOWN  to "⬇ Down (normal)",
-        OrbitPrefs.GRAVITY_LEFT  to "⬅ Left",
-        OrbitPrefs.GRAVITY_UP    to "⬆ Up",
-        OrbitPrefs.GRAVITY_RIGHT to "➡ Right",
-    )
-    var expanded by remember { mutableStateOf(false) }
-    val currentLabel = options.firstOrNull { it.first == selected }?.second ?: "⬇ Down (normal)"
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        OutlinedTextField(
-            value = currentLabel,
-            onValueChange = {},
-            readOnly = true,
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .menuAnchor()
-                .fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor   = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-            )
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            options.forEach { (value, label) ->
-                DropdownMenuItem(
-                    text = { Text(label) },
-                    onClick = {
-                        onSelect(value)
-                        expanded = false
-                    },
-                    trailingIcon = {
-                        if (value == selected) {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                )
-            }
-        }
-    }
-}
-
 // ── Reusable composables ──────────────────────────────────────────────────────
 
 @Composable
 fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Card(
-        modifier  = Modifier.fillMaxWidth(),
-        colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth(),
+        colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(
                 title,
-                style      = MaterialTheme.typography.titleSmall,
-                color      = MaterialTheme.colorScheme.primary,
+                style     = MaterialTheme.typography.titleSmall,
+                color     = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(Modifier.height(12.dp))
@@ -563,13 +493,14 @@ fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
 fun LabeledSlider(label: String, value: Float, min: Float, max: Float, onChanged: (Float) -> Unit) {
     Text(label, style = MaterialTheme.typography.bodyMedium)
     Slider(
-        value         = value,
+        value = value,
         onValueChange = onChanged,
-        valueRange    = min..max,
-        modifier      = Modifier.fillMaxWidth()
+        valueRange = min..max,
+        modifier = Modifier.fillMaxWidth()
     )
 }
 
+/** Very simple RGB color picker — three sliders + a preview swatch. */
 @Composable
 fun ColorPickerRow(color: Color, onColorChange: (Color) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -591,7 +522,7 @@ fun ColorPickerRow(color: Color, onColorChange: (Color) -> Unit) {
                     Text(ch, modifier = Modifier.width(16.dp),
                         style = MaterialTheme.typography.labelSmall)
                     Slider(
-                        value         = v,
+                        value = v,
                         onValueChange = { nv ->
                             onColorChange(when (ch) {
                                 "R"  -> color.copy(red   = nv)

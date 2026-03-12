@@ -46,7 +46,6 @@ struct Settings {
     float orb_scale     = 1.0f;
     int   orb_count     = 120;
     int   cube_chance   = 50;
-    int   gravity_dir   = 0;  // 0=down 1=left 2=up 3=right
     // paths resolved on Kotlin side, pixels pushed via nativeSetBgPixels / nativeSetCubePixels
 };
 
@@ -188,8 +187,31 @@ static void drawFullscreenTex(GLuint prog, const float* mvp,
                                int W, int H, GLuint texId,
                                float scaleX=1.f, float scaleY=1.f,
                                float offX=0.f, float offY=0.f) {
+    // draw with custom UV for zoom/tile — simplified to stretch here
     (void)scaleX; (void)scaleY; (void)offX; (void)offY;
     drawQuad(prog, mvp, W*0.5f, H*0.5f, (float)W, (float)H, 0.f, texId);
+}
+
+// ─── Box blur (same algorithm as Windows version) ────────────────────────────
+static void boxBlur(unsigned char* px, int W, int H, int radius) {
+    auto* tmp = new unsigned char[W * H * 4];
+    for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
+        int rr=0,gg=0,bb=0,cnt=0;
+        for (int k=-radius;k<=radius;k++){
+            int nx=x+k; if(nx<0||nx>=W)continue;
+            int idx=(y*W+nx)*4; rr+=px[idx];gg+=px[idx+1];bb+=px[idx+2];cnt++;
+        }
+        int idx=(y*W+x)*4; tmp[idx]=rr/cnt;tmp[idx+1]=gg/cnt;tmp[idx+2]=bb/cnt;tmp[idx+3]=255;
+    }
+    for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
+        int rr=0,gg=0,bb=0,cnt=0;
+        for (int k=-radius;k<=radius;k++){
+            int ny=y+k; if(ny<0||ny>=H)continue;
+            int idx=(ny*W+x)*4; rr+=tmp[idx];gg+=tmp[idx+1];bb+=tmp[idx+2];cnt++;
+        }
+        int idx=(y*W+x)*4; px[idx]=rr/cnt;px[idx+1]=gg/cnt;px[idx+2]=bb/cnt;px[idx+3]=255;
+    }
+    delete[] tmp;
 }
 
 // ─── Global state ─────────────────────────────────────────────────────────────
@@ -305,16 +327,7 @@ static void renderLoop() {
         int   numBalls   = std::max(1, s.orb_count);
         int   dropTime   = std::max(1, (int)(20.f / speedMult));
 
-        // gravity_dir: 0=down 1=left 2=up 3=right
-        float gx = 0.f, gy = 0.f;
-        float gMag = 9.8f * speedMult * 3.f;
-        switch (s.gravity_dir) {
-            case 1:  gx = -gMag; break;          // left
-            case 2:  gy = -gMag; break;           // up
-            case 3:  gx =  gMag; break;           // right
-            default: gy =  gMag; break;           // down
-        }
-        b2Vec2 gravity(gx, gy);
+        b2Vec2 gravity(0.f, 9.8f * speedMult * 3.f);
         b2World world(gravity);
 
         auto makeWall = [&](float x1,float y1,float x2,float y2) {
@@ -325,39 +338,10 @@ static void renderLoop() {
             body->CreateFixture(&fd);
             return body;
         };
-        // Build 3 permanent side walls + 1 drainable floor wall based on gravity direction
-        // gravity_dir: 0=down → floor=bottom, 1=left → floor=left, 2=up → floor=top, 3=right → floor=right
-        switch (s.gravity_dir) {
-            case 1: // gravity left: floor=left, permanent = right+top+bottom
-                makeWall((float)W,0,(float)W,(float)H); // right
-                makeWall(0,0,(float)W,0);               // top
-                makeWall(0,(float)H,(float)W,(float)H); // bottom
-                break;
-            case 2: // gravity up: floor=top, permanent = left+right+bottom
-                makeWall(0,0,0,(float)H);               // left
-                makeWall((float)W,0,(float)W,(float)H); // right
-                makeWall(0,(float)H,(float)W,(float)H); // bottom
-                break;
-            case 3: // gravity right: floor=right, permanent = left+top+bottom
-                makeWall(0,0,0,(float)H);               // left
-                makeWall(0,0,(float)W,0);               // top
-                makeWall(0,(float)H,(float)W,(float)H); // bottom
-                break;
-            default: // gravity down: floor=bottom, permanent = left+right+top
-                makeWall(0,0,0,(float)H);               // left
-                makeWall((float)W,0,(float)W,(float)H); // right
-                makeWall(0,0,(float)W,0);               // top
-                break;
-        }
+        makeWall(0,0,0,(float)H);
+        makeWall((float)W,0,(float)W,(float)H);
         b2Body* wallBottom = nullptr;
-        if (!s.no_ground) {
-            switch (s.gravity_dir) {
-                case 1:  wallBottom = makeWall(0,0,0,(float)H);               break; // left
-                case 2:  wallBottom = makeWall(0,0,(float)W,0);               break; // top
-                case 3:  wallBottom = makeWall((float)W,0,(float)W,(float)H); break; // right
-                default: wallBottom = makeWall(0,(float)H,(float)W,(float)H); break; // bottom
-            }
-        }
+        if (!s.no_ground) wallBottom = makeWall(0,(float)H,(float)W,(float)H);
 
         std::vector<Ball> balls;
         int  globalTime   = 0;
@@ -381,6 +365,7 @@ static void renderLoop() {
         while (simRunning && g_running.load()) {
             globalTime++;
 
+            // check if surface is still valid
             { std::lock_guard<std::mutex> lk(g_windowMutex);
               if (!g_window) { simRunning = false; break; } }
 
@@ -391,28 +376,9 @@ static void renderLoop() {
             while (nextSpawn < numBalls && globalTime >= dropTime * nextSpawn) {
                 float radius = (40 + rand() % 20) * s.orb_scale;
                 b2BodyDef bd; bd.type = b2_dynamicBody;
-                // Spawn from the edge opposite to gravity direction
-                float spawnX, spawnY;
-                float spread = (float)(1 + rand() % (numBalls * 2));
-                switch (s.gravity_dir) {
-                    case 1: // gravity left → spawn from right edge
-                        spawnX = ((float)W + 250.f) / PPM;
-                        spawnY = ((float)H * 0.8f / numBalls * spread) / PPM;
-                        break;
-                    case 2: // gravity up → spawn from bottom edge
-                        spawnX = ((float)W * 0.8f / numBalls * spread) / PPM;
-                        spawnY = ((float)H + 250.f) / PPM;
-                        break;
-                    case 3: // gravity right → spawn from left edge
-                        spawnX = -250.f / PPM;
-                        spawnY = ((float)H * 0.8f / numBalls * spread) / PPM;
-                        break;
-                    default: // gravity down → spawn from top edge
-                        spawnX = ((float)W * 0.8f / numBalls * spread) / PPM;
-                        spawnY = -250.f / PPM;
-                        break;
-                }
-                bd.position.Set(spawnX, spawnY);
+                bd.position.Set(
+                    ((float)W * 0.8f / numBalls * (1 + rand() % (numBalls * 2))) / PPM,
+                    -250.f / PPM);
                 b2Body* body = world.CreateBody(&bd);
                 b2CircleShape cs; cs.m_radius = radius / PPM;
                 b2FixtureDef fd; fd.shape = &cs; fd.density = 1.f;
@@ -432,15 +398,7 @@ static void renderLoop() {
                 playerSpawned = true;
                 if ((rand() % 100) < s.cube_chance) {
                     b2BodyDef bd; bd.type = b2_dynamicBody;
-                    // Cube spawns from the same ceiling edge
-                    float cspawnX, cspawnY;
-                    switch (s.gravity_dir) {
-                        case 1:  cspawnX = ((float)W + 400.f) / PPM; cspawnY = (float)H * 0.5f / PPM; break;
-                        case 2:  cspawnX = (float)W * 0.5f / PPM;   cspawnY = ((float)H + 400.f) / PPM; break;
-                        case 3:  cspawnX = -400.f / PPM;             cspawnY = (float)H * 0.5f / PPM; break;
-                        default: cspawnX = (float)W * 0.5f / PPM;   cspawnY = -400.f / PPM; break;
-                    }
-                    bd.position.Set(cspawnX, cspawnY);
+                    bd.position.Set((float)W * 0.5f / PPM, -400.f / PPM);
                     b2Body* body = world.CreateBody(&bd);
                     float hsize = PLAYER_SIZE * 0.5f * s.orb_scale / PPM;
                     b2PolygonShape ps; ps.SetAsBox(hsize, hsize);
@@ -465,18 +423,8 @@ static void renderLoop() {
             }
             if (!s.no_ground && draining) {
                 bool allOff = true;
-                for (auto& b : balls) {
-                    float px = b.body->GetPosition().x * PPM;
-                    float py = b.body->GetPosition().y * PPM;
-                    bool offscreen = false;
-                    switch (s.gravity_dir) {
-                        case 1:  offscreen = (px > -300.f);          break; // fell left, now off left
-                        case 2:  offscreen = (py > H + 300.f);       break; // fell up, now off top... wait, gravity up means floor is top, drain removes top wall, orbs fly up off screen
-                        case 3:  offscreen = (px > W + 300.f);       break; // fell right
-                        default: offscreen = (py > H + 300.f);       break; // fell down
-                    }
-                    if (!offscreen) { allOff = false; break; }
-                }
+                for (auto& b : balls)
+                    if (b.body->GetPosition().y * PPM < H + 300) { allOff = false; break; }
                 if (allOff) simRunning = false;
             }
             if (s.no_ground && globalTime > numBalls * dropTime + 500) simRunning = false;
@@ -574,24 +522,22 @@ Java_com_malikhw_orbit_dream_OrbitRenderer_nativeSetSettings(
         jint speed, jint fps, jint bgMode,
         jfloat bgR, jfloat bgG, jfloat bgB,
         jboolean noGround, jfloat orbScale,
-        jint orbCount, jint cubeChance, jint gravityDir)
+        jint orbCount, jint cubeChance)
 {
     std::lock_guard<std::mutex> lk(g_settingsMutex);
-    g_settings.speed        = speed;
-    g_settings.fps          = fps;
-    g_settings.bg_mode      = bgMode;
-    g_settings.bg_color[0]  = bgR;
-    g_settings.bg_color[1]  = bgG;
-    g_settings.bg_color[2]  = bgB;
-    g_settings.no_ground    = noGround;
-    g_settings.orb_scale    = orbScale;
-    g_settings.orb_count    = orbCount;
-    g_settings.cube_chance  = cubeChance;
-    g_settings.gravity_dir  = gravityDir;
+    g_settings.speed       = speed;
+    g_settings.fps         = fps;
+    g_settings.bg_mode     = bgMode;
+    g_settings.bg_color[0] = bgR;
+    g_settings.bg_color[1] = bgG;
+    g_settings.bg_color[2] = bgB;
+    g_settings.no_ground   = noGround;
+    g_settings.orb_scale   = orbScale;
+    g_settings.orb_count   = orbCount;
+    g_settings.cube_chance = cubeChance;
 }
 
-// ── Fixed: no channel swap needed — Android ARGB_8888 is RGBA in memory ──────
-
+// Called from Kotlin with ARGB_8888 bitmap (wallpaper, already blurred if needed)
 JNIEXPORT void JNICALL
 Java_com_malikhw_orbit_dream_OrbitRenderer_nativeSetBgBitmap(
         JNIEnv* env, jobject, jobject bitmap)
@@ -603,8 +549,14 @@ Java_com_malikhw_orbit_dream_OrbitRenderer_nativeSetBgBitmap(
 
     int W = info.width, H = info.height;
     std::vector<uint8_t> buf(W * H * 4);
-    // Android ARGB_8888 is stored as RGBA in memory — copy straight through
-    memcpy(buf.data(), pixels, W * H * 4);
+    // Android bitmap is ARGB_8888 = stored as BGRA on little-endian; convert to RGBA
+    auto* src = (uint8_t*)pixels;
+    for (int i = 0; i < W * H; i++) {
+        buf[i*4+0] = src[i*4+2]; // R ← B
+        buf[i*4+1] = src[i*4+1]; // G
+        buf[i*4+2] = src[i*4+0]; // B ← R
+        buf[i*4+3] = 255;
+    }
     AndroidBitmap_unlockPixels(env, bitmap);
 
     {
@@ -615,6 +567,7 @@ Java_com_malikhw_orbit_dream_OrbitRenderer_nativeSetBgBitmap(
     g_bgDirty = true;
 }
 
+// Called from Kotlin with decoded cube bitmap (gallery or default)
 JNIEXPORT void JNICALL
 Java_com_malikhw_orbit_dream_OrbitRenderer_nativeSetCubeBitmap(
         JNIEnv* env, jobject, jobject bitmap)
@@ -626,8 +579,13 @@ Java_com_malikhw_orbit_dream_OrbitRenderer_nativeSetCubeBitmap(
 
     int W = info.width, H = info.height;
     std::vector<uint8_t> buf(W * H * 4);
-    // Android ARGB_8888 is stored as RGBA in memory — copy straight through
-    memcpy(buf.data(), pixels, W * H * 4);
+    auto* src = (uint8_t*)pixels;
+    for (int i = 0; i < W * H; i++) {
+        buf[i*4+0] = src[i*4+2];
+        buf[i*4+1] = src[i*4+1];
+        buf[i*4+2] = src[i*4+0];
+        buf[i*4+3] = src[i*4+3];
+    }
     AndroidBitmap_unlockPixels(env, bitmap);
 
     {

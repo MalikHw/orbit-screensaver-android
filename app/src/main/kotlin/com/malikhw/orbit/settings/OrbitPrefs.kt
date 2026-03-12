@@ -3,23 +3,23 @@ package com.malikhw.orbit.settings
 import android.content.Context
 import androidx.core.content.edit
 
+/**
+ * Thin wrapper around SharedPreferences.
+ * Mirrors the Settings struct from the Windows version.
+ */
 class OrbitPrefs(context: Context) {
 
     companion object {
-        const val BG_BLACK = 0
-        const val BG_COLOR = 1
-        const val BG_IMAGE = 2
-
-        // Gravity direction — orbs fall toward this edge
-        const val GRAVITY_DOWN  = 0
-        const val GRAVITY_LEFT  = 1
-        const val GRAVITY_UP    = 2
-        const val GRAVITY_RIGHT = 3
+        const val BG_BLACK          = 0
+        const val BG_COLOR          = 1
+        const val BG_IMAGE          = 2
 
         private const val PREFS_NAME = "orbit_settings"
     }
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    // ── Getters ───────────────────────────────────────────────────────────────
 
     var speed: Int
         get()  = prefs.getInt("speed", 10)
@@ -45,10 +45,12 @@ class OrbitPrefs(context: Context) {
         get()  = prefs.getFloat("bg_b", 0.12f)
         set(v) = prefs.edit { putFloat("bg_b", v) }
 
+    /** URI string of the custom background image, or null. */
     var bgImageUri: String?
         get()  = prefs.getString("bg_image_uri", null)
         set(v) = prefs.edit { if (v != null) putString("bg_image_uri", v) else remove("bg_image_uri") }
 
+    /** URI string of the custom cube image, or null (use bundled default). */
     var cubeImageUri: String?
         get()  = prefs.getString("cube_image_uri", null)
         set(v) = prefs.edit { if (v != null) putString("cube_image_uri", v) else remove("cube_image_uri") }
@@ -72,9 +74,4 @@ class OrbitPrefs(context: Context) {
     var autoUpdateCheck: Boolean
         get()  = prefs.getBoolean("auto_update_check", true)
         set(v) = prefs.edit { putBoolean("auto_update_check", v) }
-
-    /** Which direction orbs fall. One of GRAVITY_DOWN/LEFT/UP/RIGHT. */
-    var gravityDir: Int
-        get()  = prefs.getInt("gravity_dir", GRAVITY_DOWN)
-        set(v) = prefs.edit { putInt("gravity_dir", v) }
 }
