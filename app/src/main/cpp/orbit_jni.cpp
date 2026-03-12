@@ -187,31 +187,8 @@ static void drawFullscreenTex(GLuint prog, const float* mvp,
                                int W, int H, GLuint texId,
                                float scaleX=1.f, float scaleY=1.f,
                                float offX=0.f, float offY=0.f) {
-    // draw with custom UV for zoom/tile — simplified to stretch here
     (void)scaleX; (void)scaleY; (void)offX; (void)offY;
     drawQuad(prog, mvp, W*0.5f, H*0.5f, (float)W, (float)H, 0.f, texId);
-}
-
-// ─── Box blur (same algorithm as Windows version) ────────────────────────────
-static void boxBlur(unsigned char* px, int W, int H, int radius) {
-    auto* tmp = new unsigned char[W * H * 4];
-    for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
-        int rr=0,gg=0,bb=0,cnt=0;
-        for (int k=-radius;k<=radius;k++){
-            int nx=x+k; if(nx<0||nx>=W)continue;
-            int idx=(y*W+nx)*4; rr+=px[idx];gg+=px[idx+1];bb+=px[idx+2];cnt++;
-        }
-        int idx=(y*W+x)*4; tmp[idx]=rr/cnt;tmp[idx+1]=gg/cnt;tmp[idx+2]=bb/cnt;tmp[idx+3]=255;
-    }
-    for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
-        int rr=0,gg=0,bb=0,cnt=0;
-        for (int k=-radius;k<=radius;k++){
-            int ny=y+k; if(ny<0||ny>=H)continue;
-            int idx=(ny*W+x)*4; rr+=tmp[idx];gg+=tmp[idx+1];bb+=tmp[idx+2];cnt++;
-        }
-        int idx=(y*W+x)*4; px[idx]=rr/cnt;px[idx+1]=gg/cnt;px[idx+2]=bb/cnt;px[idx+3]=255;
-    }
-    delete[] tmp;
 }
 
 // ─── Global state ─────────────────────────────────────────────────────────────
@@ -365,7 +342,6 @@ static void renderLoop() {
         while (simRunning && g_running.load()) {
             globalTime++;
 
-            // check if surface is still valid
             { std::lock_guard<std::mutex> lk(g_windowMutex);
               if (!g_window) { simRunning = false; break; } }
 
@@ -537,7 +513,8 @@ Java_com_malikhw_orbit_dream_OrbitRenderer_nativeSetSettings(
     g_settings.cube_chance = cubeChance;
 }
 
-// Called from Kotlin with ARGB_8888 bitmap (wallpaper, already blurred if needed)
+// ── Fixed: no channel swap needed — Android ARGB_8888 is RGBA in memory ──────
+
 JNIEXPORT void JNICALL
 Java_com_malikhw_orbit_dream_OrbitRenderer_nativeSetBgBitmap(
         JNIEnv* env, jobject, jobject bitmap)
@@ -549,14 +526,8 @@ Java_com_malikhw_orbit_dream_OrbitRenderer_nativeSetBgBitmap(
 
     int W = info.width, H = info.height;
     std::vector<uint8_t> buf(W * H * 4);
-    // Android bitmap is ARGB_8888 = stored as BGRA on little-endian; convert to RGBA
-    auto* src = (uint8_t*)pixels;
-    for (int i = 0; i < W * H; i++) {
-        buf[i*4+0] = src[i*4+2]; // R ← B
-        buf[i*4+1] = src[i*4+1]; // G
-        buf[i*4+2] = src[i*4+0]; // B ← R
-        buf[i*4+3] = 255;
-    }
+    // Android ARGB_8888 is stored as RGBA in memory — copy straight through
+    memcpy(buf.data(), pixels, W * H * 4);
     AndroidBitmap_unlockPixels(env, bitmap);
 
     {
@@ -567,7 +538,6 @@ Java_com_malikhw_orbit_dream_OrbitRenderer_nativeSetBgBitmap(
     g_bgDirty = true;
 }
 
-// Called from Kotlin with decoded cube bitmap (gallery or default)
 JNIEXPORT void JNICALL
 Java_com_malikhw_orbit_dream_OrbitRenderer_nativeSetCubeBitmap(
         JNIEnv* env, jobject, jobject bitmap)
@@ -579,13 +549,8 @@ Java_com_malikhw_orbit_dream_OrbitRenderer_nativeSetCubeBitmap(
 
     int W = info.width, H = info.height;
     std::vector<uint8_t> buf(W * H * 4);
-    auto* src = (uint8_t*)pixels;
-    for (int i = 0; i < W * H; i++) {
-        buf[i*4+0] = src[i*4+2];
-        buf[i*4+1] = src[i*4+1];
-        buf[i*4+2] = src[i*4+0];
-        buf[i*4+3] = src[i*4+3];
-    }
+    // Android ARGB_8888 is stored as RGBA in memory — copy straight through
+    memcpy(buf.data(), pixels, W * H * 4);
     AndroidBitmap_unlockPixels(env, bitmap);
 
     {
