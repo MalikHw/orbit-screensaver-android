@@ -1,11 +1,6 @@
 package com.malikhw.orbit.dream
 
-import android.app.WallpaperManager
-import android.content.Context
-import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.service.dreams.DreamService
 import android.view.SurfaceHolder
@@ -23,21 +18,10 @@ class OrbitDreamService : DreamService(), SurfaceHolder.Callback {
     private lateinit var surfaceView: SurfaceView
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
-
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         isInteractive = false
         isFullscreen  = true
-
-        // Apply saved orientation
-        val p = OrbitPrefs(this)
-        requestedOrientation = when (p.orientation) {
-            OrbitPrefs.ORIENT_LANDSCAPE         -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            OrbitPrefs.ORIENT_REVERSE_LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
-            OrbitPrefs.ORIENT_REVERSE_PORTRAIT  -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
-            else                                -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        }
 
         OrbitRenderer.nativeSetAssetManager(assets)
 
@@ -61,8 +45,6 @@ class OrbitDreamService : DreamService(), SurfaceHolder.Callback {
         scope.cancel()
     }
 
-    // ── SurfaceHolder.Callback ────────────────────────────────────────────────
-
     override fun surfaceCreated(holder: SurfaceHolder) {
         scope.launch {
             prepareBgAndCube()
@@ -76,8 +58,6 @@ class OrbitDreamService : DreamService(), SurfaceHolder.Callback {
         OrbitRenderer.nativeSurfaceDestroyed()
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
     private fun pushSettingsToNative() {
         val p = OrbitPrefs(this)
         OrbitRenderer.nativeSetSettings(
@@ -90,25 +70,22 @@ class OrbitDreamService : DreamService(), SurfaceHolder.Callback {
             noGround   = p.noGround,
             orbScale   = p.orbScale,
             orbCount   = p.orbCount,
-            cubeChance = p.cubeChance
+            cubeChance = p.cubeChance,
+            gravityDir = p.gravityDir
         )
     }
 
     private suspend fun prepareBgAndCube() = withContext(Dispatchers.IO) {
         val p = OrbitPrefs(this@OrbitDreamService)
 
-        // ── Background ────────────────────────────────────────────────────────
         val bgBitmap: Bitmap? = when (p.bgMode) {
-            OrbitPrefs.BG_IMAGE -> {
-                p.bgImageUri?.let { uri -> loadBitmapFromUri(uri) }
-            }
+            OrbitPrefs.BG_IMAGE -> p.bgImageUri?.let { loadBitmapFromUri(it) }
             else -> null
         }
         bgBitmap?.let { OrbitRenderer.nativeSetBgBitmap(ensureArgb8888(it)) }
 
-        // ── Cube ──────────────────────────────────────────────────────────────
         val cubeBitmap: Bitmap? = p.cubeImageUri?.let { uri ->
-            loadBitmapFromUri(uri)?.let { bmp -> squareCrop(bmp) }
+            loadBitmapFromUri(uri)?.let { squareCrop(it) }
         }
         cubeBitmap?.let { OrbitRenderer.nativeSetCubeBitmap(ensureArgb8888(it)) }
     }
@@ -127,8 +104,7 @@ class OrbitDreamService : DreamService(), SurfaceHolder.Callback {
         return Bitmap.createScaledBitmap(bmp, size, size, true)
     }
 
-    private fun ensureArgb8888(bmp: Bitmap): Bitmap {
-        return if (bmp.config == Bitmap.Config.ARGB_8888) bmp
+    private fun ensureArgb8888(bmp: Bitmap): Bitmap =
+        if (bmp.config == Bitmap.Config.ARGB_8888) bmp
         else bmp.copy(Bitmap.Config.ARGB_8888, false)
-    }
 }
