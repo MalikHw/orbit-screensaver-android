@@ -92,7 +92,7 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
     var cubeChance  by remember { mutableIntStateOf(prefs.cubeChance) }
     var bgImageUri  by remember { mutableStateOf(prefs.bgImageUri) }
     var cubeUri     by remember { mutableStateOf(prefs.cubeImageUri) }
-    var orientation by remember { mutableIntStateOf(prefs.orientation) }
+    var gravityDir  by remember { mutableIntStateOf(prefs.gravityDir) }
 
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
     var saveToast   by remember { mutableStateOf(false) }
@@ -130,7 +130,7 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
         prefs.orbScale    = orbScale
         prefs.orbCount    = orbCount
         prefs.cubeChance  = cubeChance
-        prefs.orientation = orientation
+        prefs.gravityDir  = gravityDir
         saveToast = true
     }
 
@@ -167,11 +167,11 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
 
             // ── Display ───────────────────────────────────────────────────────
             SectionCard(title = "Display") {
-                Text("Orientation", style = MaterialTheme.typography.bodyMedium)
+                Text("Gravity direction", style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(8.dp))
-                OrientationDropdown(
-                    selected  = orientation,
-                    onSelect  = { orientation = it }
+                GravityDropdown(
+                    selected = gravityDir,
+                    onSelect = { gravityDir = it }
                 )
             }
 
@@ -479,19 +479,19 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
     }
 }
 
-// ── Orientation dropdown ──────────────────────────────────────────────────────
+// ── Gravity direction dropdown ────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OrientationDropdown(selected: Int, onSelect: (Int) -> Unit) {
+fun GravityDropdown(selected: Int, onSelect: (Int) -> Unit) {
     val options = listOf(
-        OrbitPrefs.ORIENT_PORTRAIT          to "Portrait (normal)",
-        OrbitPrefs.ORIENT_LANDSCAPE         to "Landscape",
-        OrbitPrefs.ORIENT_REVERSE_LANDSCAPE to "Landscape (reversed)",
-        OrbitPrefs.ORIENT_REVERSE_PORTRAIT  to "Portrait (reversed)",
+        OrbitPrefs.GRAVITY_DOWN  to "⬇ Down (normal)",
+        OrbitPrefs.GRAVITY_LEFT  to "⬅ Left",
+        OrbitPrefs.GRAVITY_UP    to "⬆ Up",
+        OrbitPrefs.GRAVITY_RIGHT to "➡ Right",
     )
     var expanded by remember { mutableStateOf(false) }
-    val currentLabel = options.firstOrNull { it.first == selected }?.second ?: "Portrait (normal)"
+    val currentLabel = options.firstOrNull { it.first == selected }?.second ?: "⬇ Down (normal)"
 
     ExposedDropdownMenuBox(
         expanded = expanded,
