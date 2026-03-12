@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
+    <!-- public Downloads (kept for legacy) -->
     <external-path
         name="downloads"
         path="Download/" />
+    <!-- app-private external downloads (used by UpdateChecker) -->
+    <external-files-path
+        name="private_downloads"
+        path="downloads/" />
 </paths>
