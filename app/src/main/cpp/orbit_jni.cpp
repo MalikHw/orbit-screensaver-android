@@ -325,17 +325,37 @@ static void renderLoop() {
             body->CreateFixture(&fd);
             return body;
         };
-        // Always build all 4 walls; the "floor" wall (opposite gravity) is the drainable one
-        makeWall(0,0,0,(float)H);              // left wall
-        makeWall((float)W,0,(float)W,(float)H); // right wall
-        makeWall(0,0,(float)W,0);              // top wall
+        // Build 3 permanent side walls + 1 drainable floor wall based on gravity direction
+        // gravity_dir: 0=down → floor=bottom, 1=left → floor=left, 2=up → floor=top, 3=right → floor=right
+        switch (s.gravity_dir) {
+            case 1: // gravity left: floor=left, permanent = right+top+bottom
+                makeWall((float)W,0,(float)W,(float)H); // right
+                makeWall(0,0,(float)W,0);               // top
+                makeWall(0,(float)H,(float)W,(float)H); // bottom
+                break;
+            case 2: // gravity up: floor=top, permanent = left+right+bottom
+                makeWall(0,0,0,(float)H);               // left
+                makeWall((float)W,0,(float)W,(float)H); // right
+                makeWall(0,(float)H,(float)W,(float)H); // bottom
+                break;
+            case 3: // gravity right: floor=right, permanent = left+top+bottom
+                makeWall(0,0,0,(float)H);               // left
+                makeWall(0,0,(float)W,0);               // top
+                makeWall(0,(float)H,(float)W,(float)H); // bottom
+                break;
+            default: // gravity down: floor=bottom, permanent = left+right+top
+                makeWall(0,0,0,(float)H);               // left
+                makeWall((float)W,0,(float)W,(float)H); // right
+                makeWall(0,0,(float)W,0);               // top
+                break;
+        }
         b2Body* wallBottom = nullptr;
         if (!s.no_ground) {
             switch (s.gravity_dir) {
-                case 1:  wallBottom = makeWall(0,0,0,(float)H);               break; // left wall is floor
-                case 2:  wallBottom = makeWall(0,0,(float)W,0);               break; // top wall is floor
-                case 3:  wallBottom = makeWall((float)W,0,(float)W,(float)H); break; // right wall is floor
-                default: wallBottom = makeWall(0,(float)H,(float)W,(float)H); break; // bottom wall is floor
+                case 1:  wallBottom = makeWall(0,0,0,(float)H);               break; // left
+                case 2:  wallBottom = makeWall(0,0,(float)W,0);               break; // top
+                case 3:  wallBottom = makeWall((float)W,0,(float)W,(float)H); break; // right
+                default: wallBottom = makeWall(0,(float)H,(float)W,(float)H); break; // bottom
             }
         }
 
