@@ -1,6 +1,5 @@
 package com.malikhw.orbit.settings
 
-import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -25,32 +24,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.lifecycleScope
 import com.malikhw.orbit.update.UpdateChecker
 import kotlinx.coroutines.launch
 
 class SettingsActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Hide the system action bar so we don't get a double header
+        actionBar?.hide()
         setContent {
             OrbitTheme {
-                SettingsScreen(
-                    onCheckUpdate = { onCheckUpdate() }
-                )
+                SettingsScreen()
             }
-        }
-    }
-
-    private fun onCheckUpdate() {
-        lifecycleScope.launch {
-            val info = UpdateChecker.fetchLatest()
-            // result is handled inside the composable via state
         }
     }
 }
@@ -61,13 +50,13 @@ class SettingsActivity : ComponentActivity() {
 fun OrbitTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
-            primary        = Color(0xFF64B5F6),
-            secondary      = Color(0xFF81C784),
-            background     = Color(0xFF121212),
-            surface        = Color(0xFF1E1E1E),
-            onPrimary      = Color.Black,
-            onBackground   = Color.White,
-            onSurface      = Color.White,
+            primary      = Color(0xFF64B5F6),
+            secondary    = Color(0xFF81C784),
+            background   = Color(0xFF121212),
+            surface      = Color(0xFF1E1E1E),
+            onPrimary    = Color.Black,
+            onBackground = Color.White,
+            onSurface    = Color.White,
         ),
         content = content
     )
@@ -77,49 +66,37 @@ fun OrbitTheme(content: @Composable () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onCheckUpdate: () -> Unit) {
+fun SettingsScreen() {
     val context = LocalContext.current
     val prefs   = remember { OrbitPrefs(context) }
 
-    // ── State mirroring prefs ─────────────────────────────────────────────────
-    var speed       by remember { mutableIntStateOf(prefs.speed) }
-    var fps         by remember { mutableIntStateOf(prefs.fps) }
-    var bgMode      by remember { mutableIntStateOf(prefs.bgMode) }
-    var bgColor     by remember { mutableStateOf(
-        Color(prefs.bgColorR, prefs.bgColorG, prefs.bgColorB)) }
-    var noGround    by remember { mutableStateOf(prefs.noGround) }
-    var orbScale    by remember { mutableFloatStateOf(prefs.orbScale) }
-    var orbCount    by remember { mutableIntStateOf(prefs.orbCount) }
-    var cubeChance  by remember { mutableIntStateOf(prefs.cubeChance) }
-    var bgImageUri  by remember { mutableStateOf(prefs.bgImageUri) }
-    var cubeUri     by remember { mutableStateOf(prefs.cubeImageUri) }
+    var speed      by remember { mutableIntStateOf(prefs.speed) }
+    var fps        by remember { mutableIntStateOf(prefs.fps) }
+    var bgMode     by remember { mutableIntStateOf(prefs.bgMode) }
+    var bgColor    by remember { mutableStateOf(Color(prefs.bgColorR, prefs.bgColorG, prefs.bgColorB)) }
+    var noGround   by remember { mutableStateOf(prefs.noGround) }
+    var orbScale   by remember { mutableFloatStateOf(prefs.orbScale) }
+    var orbCount   by remember { mutableIntStateOf(prefs.orbCount) }
+    var cubeChance by remember { mutableIntStateOf(prefs.cubeChance) }
+    var bgImageUri by remember { mutableStateOf(prefs.bgImageUri) }
+    var cubeUri    by remember { mutableStateOf(prefs.cubeImageUri) }
 
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
     var saveToast   by remember { mutableStateOf(false) }
 
-    // ── File pickers ──────────────────────────────────────────────────────────
-    val bgImagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
+    val bgImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
-            context.contentResolver.takePersistableUriPermission(
-                it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            bgImageUri = it.toString()
-            prefs.bgImageUri = it.toString()
+            context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            bgImageUri = it.toString(); prefs.bgImageUri = it.toString()
         }
     }
-    val cubePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
+    val cubePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
-            context.contentResolver.takePersistableUriPermission(
-                it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            cubeUri = it.toString()
-            prefs.cubeImageUri = it.toString()
+            context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            cubeUri = it.toString(); prefs.cubeImageUri = it.toString()
         }
     }
 
-    // save helper
     fun save() {
         prefs.speed      = speed
         prefs.fps        = fps
@@ -140,8 +117,7 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
                 title = {
                     Column {
                         Text("Orbit Screensaver", fontWeight = FontWeight.Bold)
-                        Text("by MalikHw47",
-                            fontSize = 12.sp,
+                        Text("by MalikHw47", fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                     }
                 },
@@ -166,10 +142,8 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
         ) {
 
             // ── Physics ───────────────────────────────────────────────────────
-            SectionCard(title = "Physics") {
-                LabeledSlider("Speed: $speed", speed.toFloat(), 1f, 20f) {
-                    speed = it.toInt()
-                }
+            SectionCard("Physics") {
+                LabeledSlider("Speed: $speed", speed.toFloat(), 1f, 20f) { speed = it.toInt() }
                 Spacer(Modifier.height(8.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -182,44 +156,27 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
             }
 
             // ── Orbs ──────────────────────────────────────────────────────────
-            SectionCard(title = "Orbs") {
-                LabeledSlider(
-                    "Count: $orbCount", orbCount.toFloat(), 1f, 300f) {
-                    orbCount = it.toInt()
-                }
+            SectionCard("Orbs") {
+                LabeledSlider("Count: $orbCount", orbCount.toFloat(), 1f, 300f) { orbCount = it.toInt() }
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("Low" to 30, "Med" to 80, "High" to 120, "Giga" to 210).forEach { (label, v) ->
-                        FilterChip(
-                            selected = orbCount == v,
-                            onClick  = { orbCount = v },
-                            label    = { Text(label) }
-                        )
+                        FilterChip(selected = orbCount == v, onClick = { orbCount = v }, label = { Text(label) })
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                LabeledSlider(
-                    "Size: ${"%.1f".format(orbScale)}×", orbScale, 0.3f, 3.0f) {
-                    orbScale = it
-                }
+                LabeledSlider("Size: ${"%.1f".format(orbScale)}×", orbScale, 0.3f, 3.0f) { orbScale = it }
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("S" to 0.5f, "M" to 1.0f, "L" to 1.5f, "XL" to 2.0f).forEach { (label, v) ->
-                        FilterChip(
-                            selected = orbScale == v,
-                            onClick  = { orbScale = v },
-                            label    = { Text(label) }
-                        )
+                        FilterChip(selected = orbScale == v, onClick = { orbScale = v }, label = { Text(label) })
                     }
                 }
             }
 
             // ── Cube ──────────────────────────────────────────────────────────
-            SectionCard(title = "Cube") {
-                LabeledSlider(
-                    "Spawn chance: $cubeChance%", cubeChance.toFloat(), 0f, 100f) {
-                    cubeChance = it.toInt()
-                }
+            SectionCard("Cube") {
+                LabeledSlider("Spawn chance: $cubeChance%", cubeChance.toFloat(), 0f, 100f) { cubeChance = it.toInt() }
                 Spacer(Modifier.height(8.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -228,47 +185,29 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Custom cube image", style = MaterialTheme.typography.bodyMedium)
-                        if (cubeUri != null) {
-                            Text(
-                                uriFilename(context, cubeUri!!),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        } else {
-                            Text("Using bundled default",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray)
-                        }
+                        if (cubeUri != null)
+                            Text(uriFilename(context, cubeUri!!), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        else
+                            Text("Using bundled default", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlinedButton(onClick = { cubePicker.launch("image/*") }) {
-                            Text("Browse")
-                        }
+                        OutlinedButton(onClick = { cubePicker.launch("image/*") }) { Text("Browse") }
                         if (cubeUri != null) {
-                            OutlinedButton(onClick = {
-                                cubeUri = null; prefs.cubeImageUri = null
-                            }) { Text("Reset") }
+                            OutlinedButton(onClick = { cubeUri = null; prefs.cubeImageUri = null }) { Text("Reset") }
                         }
                     }
                 }
             }
 
             // ── Background ────────────────────────────────────────────────────
-            SectionCard(title = "Background") {
-                val bgOptions = listOf(
-                    "Black" to OrbitPrefs.BG_BLACK,
-                    "Color" to OrbitPrefs.BG_COLOR,
-                    "Image" to OrbitPrefs.BG_IMAGE
-                )
+            SectionCard("Background") {
+                val bgOptions = listOf("Black" to OrbitPrefs.BG_BLACK, "Color" to OrbitPrefs.BG_COLOR, "Image" to OrbitPrefs.BG_IMAGE)
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     bgOptions.forEach { (label, value) ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { bgMode = value }
-                                .padding(vertical = 6.dp, horizontal = 4.dp)
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                                .clickable { bgMode = value }.padding(vertical = 6.dp, horizontal = 4.dp)
                         ) {
                             RadioButton(selected = bgMode == value, onClick = { bgMode = value })
                             Spacer(Modifier.width(8.dp))
@@ -276,12 +215,10 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
                         }
                     }
                 }
-
                 if (bgMode == OrbitPrefs.BG_COLOR) {
                     Spacer(Modifier.height(12.dp))
                     ColorPickerRow(bgColor) { bgColor = it }
                 }
-
                 if (bgMode == OrbitPrefs.BG_IMAGE) {
                     Spacer(Modifier.height(12.dp))
                     Row(
@@ -291,25 +228,18 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Background image", style = MaterialTheme.typography.bodyMedium)
-                            if (bgImageUri != null) {
-                                Text(
-                                    uriFilename(context, bgImageUri!!),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            } else {
+                            if (bgImageUri != null)
+                                Text(uriFilename(context, bgImageUri!!), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                            else
                                 Text("None selected", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                            }
                         }
-                        OutlinedButton(onClick = { bgImagePicker.launch("image/*") }) {
-                            Text("Browse")
-                        }
+                        OutlinedButton(onClick = { bgImagePicker.launch("image/*") }) { Text("Browse") }
                     }
                 }
             }
 
             // ── Updates ───────────────────────────────────────────────────────
-            SectionCard(title = "Updates") {
+            SectionCard("Updates") {
                 val scope = rememberCoroutineScope()
                 when (val state = updateState) {
                     is UpdateState.Idle -> {
@@ -318,21 +248,15 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
                                 updateState = UpdateState.Checking
                                 scope.launch {
                                     val info = UpdateChecker.fetchLatest()
-                                    updateState = if (info == null) {
-                                        UpdateState.Error("Could not reach GitHub")
-                                    } else {
-                                        UpdateState.Result(info)
-                                    }
+                                    updateState = if (info == null) UpdateState.Error("Could not reach GitHub")
+                                    else UpdateState.Result(info)
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Check for updates") }
                     }
                     is UpdateState.Checking -> {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                             Text("Checking…", color = Color.Yellow)
                         }
@@ -343,46 +267,63 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
                         OutlinedButton(onClick = { updateState = UpdateState.Idle }) { Text("Retry") }
                     }
                     is UpdateState.Result -> {
-                        val appVersion = context.packageManager
-                            .getPackageInfo(context.packageName, 0).versionName
+                        val appVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName
                         if (state.info.tag == appVersion || state.info.tag == "v$appVersion") {
-                            Text("✓ You're up to date! (${state.info.tag})",
-                                color = MaterialTheme.colorScheme.secondary)
+                            Text("✓ You're up to date! (${state.info.tag})", color = MaterialTheme.colorScheme.secondary)
                         } else {
-                            Text("Update available: ${state.info.tag}",
-                                color = Color(0xFFFF9800))
+                            Text("Update available: ${state.info.tag}", color = Color(0xFFFF9800))
                             Spacer(Modifier.height(8.dp))
                             Button(
                                 onClick = {
-                                    UpdateChecker.downloadAndInstall(context, state.info)
+                                    updateState = UpdateState.Downloading(0)
+                                    scope.launch {
+                                        try {
+                                            UpdateChecker.downloadAndInstall(context, state.info) { progress ->
+                                                updateState = UpdateState.Downloading(progress)
+                                            }
+                                            // installer launched; reset state
+                                            updateState = UpdateState.Idle
+                                        } catch (e: Exception) {
+                                            updateState = UpdateState.Error("Download failed: ${e.message}")
+                                        }
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) { Text("Download & Install") }
+                        }
+                    }
+                    is UpdateState.Downloading -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Text("Downloading… ${state.progress}%", color = Color.Yellow)
+                            }
+                            LinearProgressIndicator(
+                                progress = { state.progress / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                 }
             }
 
             // ── Links ─────────────────────────────────────────────────────────
-            SectionCard(title = "Author") {
+            SectionCard("Author") {
                 val links = listOf(
-                    "Website"       to "https://malikhw.github.io",
-                    "YouTube"       to "https://youtube.com/@MalikHw47",
-                    "GitHub"        to "https://github.com/MalikHw",
-                    "Twitch"        to "https://twitch.tv/MalikHw47",
-                    "Discord"       to "https://discord.gg/G9bZ92eg2n",
-                    "Ko-fi"         to "https://ko-fi.com/malikhw47",
-                    "Throne"        to "https://throne.com/MalikHw47",
+                    "Website" to "https://malikhw.github.io",
+                    "YouTube" to "https://youtube.com/@MalikHw47",
+                    "GitHub"  to "https://github.com/MalikHw",
+                    "Twitch"  to "https://twitch.tv/MalikHw47",
+                    "Discord" to "https://discord.gg/G9bZ92eg2n",
+                    "Ko-fi"   to "https://ko-fi.com/malikhw47",
+                    "Throne"  to "https://throne.com/MalikHw47",
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     links.chunked(3).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             row.forEach { (label, url) ->
                                 OutlinedButton(
-                                    onClick = {
-                                        context.startActivity(
-                                            Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                    },
+                                    onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
                                     modifier = Modifier.weight(1f),
                                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
                                 ) { Text(label, fontSize = 12.sp) }
@@ -392,33 +333,23 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
                 }
             }
 
-            // ── Bottom save button ────────────────────────────────────────────
-            Button(
-                onClick = { save() },
-                modifier = Modifier.fillMaxWidth().height(50.dp)
-            ) {
+            // ── Bottom save ───────────────────────────────────────────────────
+            Button(onClick = { save() }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
                 Icon(Icons.Default.Save, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("Save Settings", fontSize = 16.sp)
             }
 
-            // ── Open Android screensaver settings ─────────────────────────────
             var dreamSettingsError by remember { mutableStateOf(false) }
             OutlinedButton(
                 onClick = {
                     try {
-                        val intent = Intent().apply {
-                            setClassName(
-                                "com.android.settings",
-                                "com.android.settings.Settings\$DreamSettingsActivity"
-                            )
+                        context.startActivity(Intent().apply {
+                            setClassName("com.android.settings", "com.android.settings.Settings\$DreamSettingsActivity")
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        context.startActivity(intent)
+                        })
                         dreamSettingsError = false
-                    } catch (e: Exception) {
-                        dreamSettingsError = true
-                    }
+                    } catch (e: Exception) { dreamSettingsError = true }
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp)
             ) {
@@ -427,40 +358,24 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
                 Text("Open Android Screensaver Settings", fontSize = 14.sp)
             }
             if (dreamSettingsError) {
-                Text(
-                    "⚠ Couldn't open screensaver settings on this device",
+                Text("⚠ Couldn't open screensaver settings on this device",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
+                    modifier = Modifier.padding(horizontal = 4.dp))
             }
 
             Spacer(Modifier.height(24.dp))
         }
 
-        // Toast-style snackbar
         if (saveToast) {
             LaunchedEffect(Unit) {
                 kotlinx.coroutines.delay(1500)
                 saveToast = false
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 80.dp),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    tonalElevation = 8.dp
-                ) {
-                    Text(
-                        "Saved!",
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
+            Box(modifier = Modifier.fillMaxSize().padding(bottom = 80.dp), contentAlignment = Alignment.BottomCenter) {
+                Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.primary, tonalElevation = 8.dp) {
+                    Text("Saved!", modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
+                        color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -472,17 +387,13 @@ fun SettingsScreen(onCheckUpdate: () -> Unit) {
 @Composable
 fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier  = Modifier.fillMaxWidth(),
+        colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text(
-                title,
-                style     = MaterialTheme.typography.titleSmall,
-                color     = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
+            Text(title, style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(12.dp))
             content()
         }
@@ -492,43 +403,23 @@ fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
 @Composable
 fun LabeledSlider(label: String, value: Float, min: Float, max: Float, onChanged: (Float) -> Unit) {
     Text(label, style = MaterialTheme.typography.bodyMedium)
-    Slider(
-        value = value,
-        onValueChange = onChanged,
-        valueRange = min..max,
-        modifier = Modifier.fillMaxWidth()
-    )
+    Slider(value = value, onValueChange = onChanged, valueRange = min..max, modifier = Modifier.fillMaxWidth())
 }
 
-/** Very simple RGB color picker — three sliders + a preview swatch. */
 @Composable
 fun ColorPickerRow(color: Color, onColorChange: (Color) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(color)
-                .border(2.dp, Color.White.copy(alpha = 0.3f), CircleShape)
-        )
+        Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(color)
+            .border(2.dp, Color.White.copy(alpha = 0.3f), CircleShape))
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            listOf(
-                "R" to color.red,
-                "G" to color.green,
-                "B" to color.blue
-            ).forEach { (ch, v) ->
+            listOf("R" to color.red, "G" to color.green, "B" to color.blue).forEach { (ch, v) ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(ch, modifier = Modifier.width(16.dp),
-                        style = MaterialTheme.typography.labelSmall)
+                    Text(ch, modifier = Modifier.width(16.dp), style = MaterialTheme.typography.labelSmall)
                     Slider(
                         value = v,
                         onValueChange = { nv ->
-                            onColorChange(when (ch) {
-                                "R"  -> color.copy(red   = nv)
-                                "G"  -> color.copy(green = nv)
-                                else -> color.copy(blue  = nv)
-                            })
+                            onColorChange(when (ch) { "R" -> color.copy(red = nv); "G" -> color.copy(green = nv); else -> color.copy(blue = nv) })
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -543,6 +434,7 @@ fun ColorPickerRow(color: Color, onColorChange: (Color) -> Unit) {
 sealed class UpdateState {
     object Idle : UpdateState()
     object Checking : UpdateState()
+    data class Downloading(val progress: Int) : UpdateState()
     data class Error(val message: String) : UpdateState()
     data class Result(val info: UpdateChecker.ReleaseInfo) : UpdateState()
 }
