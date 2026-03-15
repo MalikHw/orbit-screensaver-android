@@ -1,8 +1,13 @@
 package com.malikhw.orbit.settings
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -28,17 +33,71 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.malikhw.orbit.update.UpdateChecker
 import kotlinx.coroutines.launch
 
+// ── Build-time flag: set to false in the Play Store product flavor ─────────────
+// For the PS variant, define ENABLE_UPDATER = false in your flavor's BuildConfig
+// or simply replace this value with `false` in the ps-specific source set.
+const val ENABLE_UPDATER = BuildConfig.ENABLE_UPDATER
+
 class SettingsActivity : ComponentActivity() {
+
+    // Storage permission launcher (legacy Android 10–12)
+    private var pendingImageCallback: ((Uri?) -> Unit)? = null
+
+    private val requestStoragePermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                // Re-open the legacy picker after permission granted
+                openLegacyImagePicker()
+            }
+        }
+
+    private val legacyImagePicker =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            pendingImageCallback?.invoke(result.data?.data)
+            pendingImageCallback = null
+        }
+
+    /** Opens an image picker, using the legacy MediaStore picker on API < 33. */
+    fun launchImagePicker(onResult: (Uri?) -> Unit) {
+        pendingImageCallback = onResult
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+ — use the modern photo picker (no permission needed)
+            val intent = Intent(MediaStore.ACTION_PICK_IMAGES).apply {
+                type = "image/*"
+            }
+            legacyImagePicker.launch(intent)
+        } else {
+            // Android 10–12 — need READ_EXTERNAL_STORAGE
+            val hasPermission = ContextCompat.checkSelfPermission(
+                this, Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (hasPermission) {
+                openLegacyImagePicker()
+            } else {
+                requestStoragePermission.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+        }
+    }
+
+    private fun openLegacyImagePicker() {
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            type = "image/*"
+            addCategory(Intent.CATEGORY_OPENABLE)
+        }
+        legacyImagePicker.launch(intent)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Hide the system action bar so we don't get a double header
         actionBar?.hide()
         setContent {
             OrbitTheme {
-                SettingsScreen()
+                SettingsScreen(activity = this)
             }
         }
     }
@@ -66,7 +125,7 @@ fun OrbitTheme(content: @Composable () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(activity: SettingsActivity) {
     val context = LocalContext.current
     val prefs   = remember { OrbitPrefs(context) }
 
@@ -84,16 +143,33 @@ fun SettingsScreen() {
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
     var saveToast   by remember { mutableStateOf(false) }
 
-    val bgImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let {
-            context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            bgImageUri = it.toString(); prefs.bgImageUri = it.toString()
+    // ── Image pickers (activity-level, supports legacy Android 10-12) ─────────
+    fun pickBgImage() {
+        activity.launchImagePicker { uri ->
+            uri?.let {
+                // Persist permission only on API 19+ (always true for minSdk 29)
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        it, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) { /* legacy URIs may not be persistable */ }
+                bgImageUri = it.toString()
+                prefs.bgImageUri = it.toString()
+            }
         }
     }
-    val cubePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let {
-            context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            cubeUri = it.toString(); prefs.cubeImageUri = it.toString()
+
+    fun pickCubeImage() {
+        activity.launchImagePicker { uri ->
+            uri?.let {
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        it, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) { }
+                cubeUri = it.toString()
+                prefs.cubeImageUri = it.toString()
+            }
         }
     }
 
@@ -191,7 +267,7 @@ fun SettingsScreen() {
                             Text("Using bundled default", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlinedButton(onClick = { cubePicker.launch("image/*") }) { Text("Browse") }
+                        OutlinedButton(onClick = { pickCubeImage() }) { Text("Browse") }
                         if (cubeUri != null) {
                             OutlinedButton(onClick = { cubeUri = null; prefs.cubeImageUri = null }) { Text("Reset") }
                         }
@@ -233,75 +309,76 @@ fun SettingsScreen() {
                             else
                                 Text("None selected", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                         }
-                        OutlinedButton(onClick = { bgImagePicker.launch("image/*") }) { Text("Browse") }
+                        OutlinedButton(onClick = { pickBgImage() }) { Text("Browse") }
                     }
                 }
             }
 
-            // ── Updates ───────────────────────────────────────────────────────
-            SectionCard("Updates") {
-                val scope = rememberCoroutineScope()
-                when (val state = updateState) {
-                    is UpdateState.Idle -> {
-                        Button(
-                            onClick = {
-                                updateState = UpdateState.Checking
-                                scope.launch {
-                                    val info = UpdateChecker.fetchLatest()
-                                    updateState = if (info == null) UpdateState.Error("Could not reach GitHub")
-                                    else UpdateState.Result(info)
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Check for updates") }
-                    }
-                    is UpdateState.Checking -> {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                            Text("Checking…", color = Color.Yellow)
-                        }
-                    }
-                    is UpdateState.Error -> {
-                        Text("Error: ${state.message}", color = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.height(4.dp))
-                        OutlinedButton(onClick = { updateState = UpdateState.Idle }) { Text("Retry") }
-                    }
-                    is UpdateState.Result -> {
-                        val appVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName
-                        if (state.info.tag == appVersion || state.info.tag == "v$appVersion") {
-                            Text("✓ You're up to date! (${state.info.tag})", color = MaterialTheme.colorScheme.secondary)
-                        } else {
-                            Text("Update available: ${state.info.tag}", color = Color(0xFFFF9800))
-                            Spacer(Modifier.height(8.dp))
+            // ── Updates (hidden in Play Store variant) ────────────────────────
+            if (ENABLE_UPDATER) {
+                SectionCard("Updates") {
+                    val scope = rememberCoroutineScope()
+                    when (val state = updateState) {
+                        is UpdateState.Idle -> {
                             Button(
                                 onClick = {
-                                    updateState = UpdateState.Downloading(0)
+                                    updateState = UpdateState.Checking
                                     scope.launch {
-                                        try {
-                                            UpdateChecker.downloadAndInstall(context, state.info) { progress ->
-                                                updateState = UpdateState.Downloading(progress)
-                                            }
-                                            // installer launched; reset state
-                                            updateState = UpdateState.Idle
-                                        } catch (e: Exception) {
-                                            updateState = UpdateState.Error("Download failed: ${e.message}")
-                                        }
+                                        val info = UpdateChecker.fetchLatest()
+                                        updateState = if (info == null) UpdateState.Error("Could not reach GitHub")
+                                        else UpdateState.Result(info)
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth()
-                            ) { Text("Download & Install") }
+                            ) { Text("Check for updates") }
                         }
-                    }
-                    is UpdateState.Downloading -> {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        is UpdateState.Checking -> {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                Text("Downloading… ${state.progress}%", color = Color.Yellow)
+                                Text("Checking…", color = Color.Yellow)
                             }
-                            LinearProgressIndicator(
-                                progress = { state.progress / 100f },
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        }
+                        is UpdateState.Error -> {
+                            Text("Error: ${state.message}", color = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.height(4.dp))
+                            OutlinedButton(onClick = { updateState = UpdateState.Idle }) { Text("Retry") }
+                        }
+                        is UpdateState.Result -> {
+                            val appVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName
+                            if (state.info.tag == appVersion || state.info.tag == "v$appVersion") {
+                                Text("✓ You're up to date! (${state.info.tag})", color = MaterialTheme.colorScheme.secondary)
+                            } else {
+                                Text("Update available: ${state.info.tag}", color = Color(0xFFFF9800))
+                                Spacer(Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        updateState = UpdateState.Downloading(0)
+                                        scope.launch {
+                                            try {
+                                                UpdateChecker.downloadAndInstall(context, state.info) { progress ->
+                                                    updateState = UpdateState.Downloading(progress)
+                                                }
+                                                updateState = UpdateState.Idle
+                                            } catch (e: Exception) {
+                                                updateState = UpdateState.Error("Download failed: ${e.message}")
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Download & Install") }
+                            }
+                        }
+                        is UpdateState.Downloading -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    Text("Downloading… ${state.progress}%", color = Color.Yellow)
+                                }
+                                LinearProgressIndicator(
+                                    progress = { state.progress / 100f },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
                 }
