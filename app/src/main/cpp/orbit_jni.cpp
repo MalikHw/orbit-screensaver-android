@@ -30,7 +30,7 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 static constexpr float PPM        = 40.0f;
-static constexpr int   NUM_ORBS   = 10;
+static constexpr int   NUM_ORBS   = 11;   // orb1–orb10 circle, orb11 square
 static constexpr int   PLAYER_SIZE = 80;
 
 // ─── Settings (written from Kotlin via nativeSetSettings) ────────────────────
@@ -213,6 +213,7 @@ struct Ball {
     float   radius;
     int     orbIdx;
     bool    isPlayer;
+    bool    isSquareOrb; // true for orb11 — uses box hitbox, drawn as quad
 };
 
 // ─── Render thread ────────────────────────────────────────────────────────────
@@ -253,6 +254,7 @@ static void renderLoop() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glViewport(0, 0, W, H);
 
+    // Load orb1–orb11 textures
     GlTex orbTex[NUM_ORBS];
     for (int i = 0; i < NUM_ORBS; i++) {
         char name[32]; snprintf(name, sizeof(name), "orb%d.png", i + 1);
@@ -336,20 +338,44 @@ static void renderLoop() {
 
             while (nextSpawn < numBalls && globalTime >= dropTime * nextSpawn) {
                 float radius = (40 + rand() % 20) * s.orb_scale;
+                int   chosenOrb = rand() % NUM_ORBS;
+                bool  isSquare  = (chosenOrb == 10); // orb11 → index 10
+
                 b2BodyDef bd; bd.type = b2_dynamicBody;
                 bd.position.Set(
                     ((float)W * 0.8f / numBalls * (1 + rand() % (numBalls * 2))) / PPM,
                     -250.f / PPM);
                 b2Body* body = world.CreateBody(&bd);
-                b2CircleShape cs; cs.m_radius = radius / PPM;
-                b2FixtureDef fd; fd.shape = &cs; fd.density = 1.f;
-                fd.restitution = 0.5f; fd.friction = 1.f;
+
+                b2FixtureDef fd;
+                fd.density     = 1.f;
+                fd.restitution = 0.5f;
+                fd.friction    = 1.f;
+
+                b2CircleShape  cs;
+                b2PolygonShape ps;
+
+                if (isSquare) {
+                    // Square hitbox: half-size matches the visual quad radius
+                    float hsize = radius / PPM;
+                    ps.SetAsBox(hsize, hsize);
+                    fd.shape = &ps;
+                } else {
+                    cs.m_radius = radius / PPM;
+                    fd.shape = &cs;
+                }
+
                 body->CreateFixture(&fd);
                 body->ApplyLinearImpulse(
                     b2Vec2((10 - rand() % 21) * 0.05f, 0),
                     body->GetWorldCenter(), true);
-                Ball ball; ball.body = body; ball.radius = radius;
-                ball.orbIdx = rand() % NUM_ORBS; ball.isPlayer = false;
+
+                Ball ball;
+                ball.body        = body;
+                ball.radius      = radius;
+                ball.orbIdx      = chosenOrb;
+                ball.isPlayer    = false;
+                ball.isSquareOrb = isSquare;
                 balls.push_back(ball);
                 nextSpawn++;
             }
@@ -366,8 +392,10 @@ static void renderLoop() {
                     fd.restitution = 0.5f; fd.friction = 0.7f;
                     body->CreateFixture(&fd);
                     Ball ball; ball.body = body;
-                    ball.radius = PLAYER_SIZE * 0.5f * s.orb_scale;
-                    ball.orbIdx = 0; ball.isPlayer = true;
+                    ball.radius      = PLAYER_SIZE * 0.5f * s.orb_scale;
+                    ball.orbIdx      = 0;
+                    ball.isPlayer    = true;
+                    ball.isSquareOrb = false;
                     balls.push_back(ball);
                 }
             }
@@ -423,9 +451,17 @@ static void renderLoop() {
                         drawQuad(progTex, mvp, px, py, sz, sz, ang, cubeTex.id);
                     else
                         drawQuad(progCol, mvp, px, py, sz, sz, ang, 0, 0.78f,0.39f,0.39f,1.f);
+                } else if (b.isSquareOrb) {
+                    // orb11: draw as square quad with its texture
+                    float sz = b.radius * 2.f;
+                    GlTex& ot = orbTex[10]; // orb11 → index 10
+                    if (ot.ok)
+                        drawQuad(progTex, mvp, px, py, sz, sz, ang, ot.id);
+                    else
+                        drawQuad(progCol, mvp, px, py, sz, sz, ang, 0, 0.6f,0.4f,0.8f,1.f);
                 } else {
                     float d = b.radius * 2.f;
-                    GlTex& ot = orbTex[b.orbIdx % NUM_ORBS];
+                    GlTex& ot = orbTex[b.orbIdx % 10]; // orb1–orb10 only for circle bodies
                     if (ot.ok)
                         drawQuad(progTex, mvp, px, py, d, d, ang, ot.id);
                     else
