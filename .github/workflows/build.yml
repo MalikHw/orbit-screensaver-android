@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK + AAB
 
 on:
   push:
@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.version.outputs.tag }}
+      tag:    ${{ steps.version.outputs.tag }}
       signed: ${{ steps.sign.outputs.signed }}
 
     steps:
@@ -29,14 +29,10 @@ jobs:
 
       - name: Bump versionCode and set versionName in build.gradle
         run: |
-          # Increment versionCode
           CURRENT_CODE=$(grep 'versionCode ' app/build.gradle | grep -o '[0-9]*')
           NEW_CODE=$((CURRENT_CODE + 1))
           sed -i "s/versionCode $CURRENT_CODE/versionCode $NEW_CODE/" app/build.gradle
-
-          # Set versionName to timestamp
           sed -i "s/versionName \".*\"/versionName \"${{ steps.version.outputs.tag }}\"/" app/build.gradle
-
           echo "Bumped versionCode: $CURRENT_CODE -> $NEW_CODE"
           echo "Set versionName: ${{ steps.version.outputs.tag }}"
 
@@ -66,11 +62,39 @@ jobs:
               android:src="@drawable/orb6" />
           XMLEOF
 
-      - name: Move launcher icons to mipmap
+      # ── Launcher icons ──────────────────────────────────────────────────────
+      # Copy to ALL standard mipmap density buckets so the icon shows correctly
+      # on Android 10–11 (API 29–30) which don't use adaptive icons from anydpi.
+      - name: Move launcher icons to all mipmap density buckets
         run: |
-          mkdir -p app/src/main/res/mipmap-hdpi
-          cp app/src/main/res/drawable/ic_launcher.png       app/src/main/res/mipmap-hdpi/ic_launcher.png
-          cp app/src/main/res/drawable/ic_launcher_round.png app/src/main/res/mipmap-hdpi/ic_launcher_round.png
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p app/src/main/res/mipmap-${density}
+            cp app/src/main/res/drawable/ic_launcher.png       app/src/main/res/mipmap-${density}/ic_launcher.png
+            cp app/src/main/res/drawable/ic_launcher_round.png app/src/main/res/mipmap-${density}/ic_launcher_round.png
+          done
+
+      # Adaptive icon XML for API 26+ (both regular and round)
+      - name: Create adaptive icon XMLs
+        run: |
+          mkdir -p app/src/main/res/mipmap-anydpi-v26
+
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml << 'XMLEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@android:color/black" />
+              <foreground android:drawable="@drawable/ic_launcher" />
+              <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+          </adaptive-icon>
+          XMLEOF
+
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml << 'XMLEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@android:color/black" />
+              <foreground android:drawable="@drawable/ic_launcher_round" />
+              <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+          </adaptive-icon>
+          XMLEOF
 
       - name: Generate gradlew if missing
         run: |
@@ -79,33 +103,37 @@ jobs:
           fi
           chmod +x gradlew
 
-      - name: Build release APK
-        run: ./gradlew assembleRelease --stacktrace
+      # ── Build all four variants ─────────────────────────────────────────────
+      # fullRelease   → APK + AAB  (self-updater ON)
+      # playstoreRelease → APK + AAB  (self-updater OFF)
+      - name: Build release APKs
+        run: ./gradlew assembleFullRelease assemblePlaystoreRelease --stacktrace
         env:
           NDK_VERSION: "26.3.11579264"
 
-      - name: Sign APK
+      - name: Build release AABs
+        run: ./gradlew bundleFullRelease bundlePlaystoreRelease --stacktrace
+        env:
+          NDK_VERSION: "26.3.11579264"
+
+      # ── Signing ────────────────────────────────────────────────────────────
+      - name: Sign all outputs
         id: sign
         run: |
-          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
-          echo "Found APK: $APK"
           BUILD_TOOLS=$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)
           SIGNED=true
 
-          # Try release keystore if secret is set
+          # Resolve keystore
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > orbit-release.keystore
             if keytool -list -keystore orbit-release.keystore \
                 -storepass "${{ secrets.KEYSTORE_PASS }}" \
                 -alias orbit 2>/dev/null; then
+              KS=orbit-release.keystore
+              KS_PASS="${{ secrets.KEYSTORE_PASS }}"
+              KEY_ALIAS=orbit
+              KEY_PASS="${{ secrets.KEY_PASS }}"
               echo "Using release keystore"
-              $BUILD_TOOLS/apksigner sign \
-                --ks orbit-release.keystore \
-                --ks-pass pass:${{ secrets.KEYSTORE_PASS }} \
-                --ks-key-alias orbit \
-                --key-pass pass:${{ secrets.KEY_PASS }} \
-                --out orbit-screensaver.apk \
-                "$APK"
             else
               echo "Release keystore invalid, falling back to debug"
               SIGNED=false
@@ -116,7 +144,6 @@ jobs:
           fi
 
           if [ "$SIGNED" = "false" ]; then
-            # Generate a fresh debug keystore
             keytool -genkeypair -v \
               -keystore debug.keystore \
               -alias androiddebugkey \
@@ -125,22 +152,83 @@ jobs:
               -storepass android \
               -keypass android \
               -dname "CN=Android Debug,O=Android,C=US"
-            $BUILD_TOOLS/apksigner sign \
-              --ks debug.keystore \
-              --ks-pass pass:android \
-              --ks-key-alias androiddebugkey \
-              --key-pass pass:android \
-              --out orbit-screensaver.apk \
-              "$APK"
+            KS=debug.keystore
+            KS_PASS=android
+            KEY_ALIAS=androiddebugkey
+            KEY_PASS=android
           fi
+
+          sign_apk() {
+            local SRC=$1
+            local DST=$2
+            $BUILD_TOOLS/apksigner sign \
+              --ks "$KS" \
+              --ks-pass pass:$KS_PASS \
+              --ks-key-alias $KEY_ALIAS \
+              --key-pass pass:$KEY_PASS \
+              --out "$DST" \
+              "$SRC"
+            echo "Signed APK: $DST"
+          }
+
+          sign_aab() {
+            local SRC=$1
+            local DST=$2
+            # AABs are signed with jarsigner (apksigner does not support AAB)
+            jarsigner \
+              -keystore "$KS" \
+              -storepass $KS_PASS \
+              -keypass $KEY_PASS \
+              -signedjar "$DST" \
+              "$SRC" \
+              $KEY_ALIAS
+            echo "Signed AAB: $DST"
+          }
+
+          # ── Full APK ──────────────────────────────────────────────────────
+          FULL_APK=$(find app/build/outputs/apk/full/release -name "*.apk" | head -1)
+          sign_apk "$FULL_APK" orbit-screensaver.apk
+
+          # ── Full AAB ──────────────────────────────────────────────────────
+          FULL_AAB=$(find app/build/outputs/bundle/fullRelease -name "*.aab" | head -1)
+          sign_aab "$FULL_AAB" orbit-screensaver.aab
+
+          # ── Play Store APK ────────────────────────────────────────────────
+          PS_APK=$(find app/build/outputs/apk/playstore/release -name "*.apk" | head -1)
+          sign_apk "$PS_APK" orbit-screensaver-ps.apk
+
+          # ── Play Store AAB ────────────────────────────────────────────────
+          PS_AAB=$(find app/build/outputs/bundle/playstoreRelease -name "*.aab" | head -1)
+          sign_aab "$PS_AAB" orbit-screensaver-ps.aab
 
           echo "signed=$SIGNED" >> $GITHUB_OUTPUT
 
-      - name: Upload APK artifact
+      - name: Upload APK artifact (full)
         uses: actions/upload-artifact@v4
         with:
           name: orbit-screensaver-apk
           path: orbit-screensaver.apk
+          retention-days: 30
+
+      - name: Upload AAB artifact (full)
+        uses: actions/upload-artifact@v4
+        with:
+          name: orbit-screensaver-aab
+          path: orbit-screensaver.aab
+          retention-days: 30
+
+      - name: Upload APK artifact (play store)
+        uses: actions/upload-artifact@v4
+        with:
+          name: orbit-screensaver-ps-apk
+          path: orbit-screensaver-ps.apk
+          retention-days: 30
+
+      - name: Upload AAB artifact (play store)
+        uses: actions/upload-artifact@v4
+        with:
+          name: orbit-screensaver-ps-aab
+          path: orbit-screensaver-ps.aab
           retention-days: 30
 
   release:
@@ -153,6 +241,21 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: orbit-screensaver-apk
+          path: artifacts/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: orbit-screensaver-aab
+          path: artifacts/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: orbit-screensaver-ps-apk
+          path: artifacts/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: orbit-screensaver-ps-aab
           path: artifacts/
 
       - name: Set release title
@@ -169,5 +272,17 @@ jobs:
         with:
           tag_name: ${{ needs.build.outputs.tag }}
           name: ${{ steps.title.outputs.name }}
-          body: autofuckingbuilt (android edition)
-          files: artifacts/orbit-screensaver.apk
+          body: |
+            autofuckingbuilt
+
+            | File | Description |
+            |------|-------------|
+            | `orbit-screensaver.apk` | Sideload APK (with self-updater) |
+            | `orbit-screensaver.aab` | Full AAB (with self-updater) |
+            | `orbit-screensaver-ps.apk` | Play Store APK (no self-updater) |
+            | `orbit-screensaver-ps.aab` | Play Store AAB — upload this to Google Play |
+          files: |
+            artifacts/orbit-screensaver.apk
+            artifacts/orbit-screensaver.aab
+            artifacts/orbit-screensaver-ps.apk
+            artifacts/orbit-screensaver-ps.aab
