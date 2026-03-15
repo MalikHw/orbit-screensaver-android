@@ -11,8 +11,8 @@ android {
         applicationId "com.malikhw.orbit"
         minSdk 29
         targetSdk 34
-        versionCode 13
-        versionName "20260315-134357"
+        versionCode 12
+        versionName "20260313-085131"
 
         externalNativeBuild {
             cmake {
@@ -25,11 +25,29 @@ android {
         }
     }
 
+    // ── Product flavors ───────────────────────────────────────────────────────
+    flavorDimensions "distribution"
+
+    productFlavors {
+        full {
+            dimension "distribution"
+            // Self-update checker enabled
+            buildConfigField "boolean", "ENABLE_UPDATER", "true"
+        }
+        playstore {
+            dimension "distribution"
+            // Self-update checker disabled (Play Store policy)
+            buildConfigField "boolean", "ENABLE_UPDATER", "false"
+            // Separate app ID so both can coexist if needed
+            applicationIdSuffix ".ps"
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug // replace with your keystore for release
+            signingConfig signingConfigs.debug // replaced by CI signing step
         }
         debug {
             debuggable true
