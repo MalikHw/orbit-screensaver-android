@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace 'com.malikhw.orbit'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.malikhw.orbit"
         minSdk 29
-        targetSdk 34
+        targetSdk 35
         versionCode 20
         versionName "20260315-150757"
 
@@ -25,7 +25,7 @@ android {
         }
     }
 
-    // ── Product flavors ───────────────────────────────────────────────────────
+    // Product flavors
     flavorDimensions "distribution"
 
     productFlavors {
