@@ -1,52 +1,119 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+package com.malikhw.orbit.dream
 
-    <!--
-        READ_EXTERNAL_STORAGE: required on Android 10-12 (API 29-35) for the
-        legacy image picker. maxSdkVersion="35" means not requested on API 34+.
-    -->
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.net.Uri
+import android.service.dreams.DreamService
+import android.view.SurfaceHolder
+import android.view.SurfaceView
+import com.malikhw.orbit.settings.OrbitPrefs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-    <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+class OrbitDreamService : DreamService(), SurfaceHolder.Callback {
 
-    <application
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.Orbit.Splash">
+    private lateinit var surfaceView: SurfaceView
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-        <activity
-            android:name=".settings.SettingsActivity"
-            android:exported="true"
-            android:label="@string/app_name">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.service.dreams.DreamService" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-        <service
-            android:name=".dream.OrbitDreamService"
-            android:exported="true"
-            android:label="@string/dream_label"
-            android:permission="android.permission.BIND_DREAM_SERVICE">
-            <intent-filter>
-                <action android:name="android.service.dreams.DreamService" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-            <meta-data
-                android:name="android.service.dream"
-                android:resource="@xml/dream_info" />
-        </service>
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        isInteractive = false
+        isFullscreen  = true
 
-    </application>
-</manifest>
+        OrbitRenderer.nativeSetAssetManager(assets)
+
+        surfaceView = SurfaceView(this)
+        surfaceView.holder.addCallback(this)
+        setContentView(surfaceView)
+    }
+
+    override fun onDreamingStarted() {
+        super.onDreamingStarted()
+        pushSettingsToNative()
+    }
+
+    override fun onDreamingStopped() {
+        super.onDreamingStopped()
+        OrbitRenderer.nativeStop()
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        scope.cancel()
+    }
+
+    // ── SurfaceHolder.Callback ────────────────────────────────────────────────
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        scope.launch {
+            prepareBgAndCube()
+            OrbitRenderer.nativeStart(holder.surface)
+        }
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        OrbitRenderer.nativeSurfaceDestroyed()
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private fun pushSettingsToNative() {
+        val p = OrbitPrefs(this)
+        OrbitRenderer.nativeSetSettings(
+            speed      = p.speed,
+            fps        = p.fps,
+            bgMode     = p.bgMode,
+            bgR        = p.bgColorR,
+            bgG        = p.bgColorG,
+            bgB        = p.bgColorB,
+            noGround   = p.noGround,
+            orbScale   = p.orbScale,
+            orbCount   = p.orbCount,
+            cubeChance = p.cubeChance
+        )
+    }
+
+    private suspend fun prepareBgAndCube() = withContext(Dispatchers.IO) {
+        val p = OrbitPrefs(this@OrbitDreamService)
+
+        // ── Background ────────────────────────────────────────────────────────
+        val bgBitmap: Bitmap? = when (p.bgMode) {
+            OrbitPrefs.BG_IMAGE -> p.bgImageUri?.let { loadBitmapFromUri(it) }
+            else -> null
+        }
+        bgBitmap?.let { OrbitRenderer.nativeSetBgBitmap(ensureArgb8888(it)) }
+
+        // ── Cube ──────────────────────────────────────────────────────────────
+        val cubeBitmap: Bitmap? = p.cubeImageUri?.let { uri ->
+            loadBitmapFromUri(uri)?.let { squareCrop(it) }
+        }
+        cubeBitmap?.let { OrbitRenderer.nativeSetCubeBitmap(ensureArgb8888(it)) }
+    }
+
+    private fun loadBitmapFromUri(uriString: String): Bitmap? {
+        return try {
+            val uri = Uri.parse(uriString)
+            contentResolver.openInputStream(uri)?.use {
+                android.graphics.BitmapFactory.decodeStream(it)
+            }
+        } catch (e: Exception) { null }
+    }
+
+    private fun squareCrop(bmp: Bitmap): Bitmap {
+        val size = minOf(bmp.width, bmp.height)
+        return Bitmap.createScaledBitmap(bmp, size, size, true)
+    }
+
+    private fun ensureArgb8888(bmp: Bitmap): Bitmap {
+        return if (bmp.config == Bitmap.Config.ARGB_8888) bmp
+        else bmp.copy(Bitmap.Config.ARGB_8888, false)
+    }
+}
