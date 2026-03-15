@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace 'com.malikhw.orbit'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.malikhw.orbit"
         minSdk 29
-        targetSdk 35
+        targetSdk 36
         versionCode 21
         versionName "20260315-152311"
 
