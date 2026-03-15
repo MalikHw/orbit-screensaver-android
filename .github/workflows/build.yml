@@ -103,9 +103,15 @@ jobs:
           fi
           chmod +x gradlew
 
+
+      - name: Fix AndroidManifest encoding
+        run: |
+          sed -i '1s/^\xEF\xBB\xBF//' app/src/main/AndroidManifest.xml
+          sed -i '1s/^\xFF\xFE//' app/src/main/AndroidManifest.xml
+
       # ── Build all four variants ─────────────────────────────────────────────
-      # fullRelease   → APK + AAB  (self-updater ON)
-      # playstoreRelease → APK + AAB  (self-updater OFF)
+      # fullRelease   → APK + AAB
+      # playstoreRelease → APK + AAB
       - name: Build release APKs
         run: ./gradlew assembleFullRelease assemblePlaystoreRelease --stacktrace
         env:
