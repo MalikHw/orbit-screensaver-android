@@ -11,8 +11,8 @@ android {
         applicationId "com.malikhw.orbit"
         minSdk 29
         targetSdk 36
-        versionCode 23
-        versionName "20260315-183900"
+        versionCode 24
+        versionName "20260315-183941"
 
         externalNativeBuild {
             cmake {
