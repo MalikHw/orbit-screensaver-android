@@ -2,24 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.INTERNET" />
-
     <!--
-        READ_EXTERNAL_STORAGE: required on Android 10–12 (API 29–32) for the
-        legacy image picker. On API 33+ the Photo Picker needs no permission.
-        maxSdkVersion="32" ensures it is not requested on API 33+.
+        READ_EXTERNAL_STORAGE: required on Android 10-12 (API 29-35) for the
+        legacy image picker. maxSdkVersion="35" means not requested on API 34+.
     -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-
-    <!-- For APK install via FileProvider on Android 7+ -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-
-    <!-- Wallpaper access -->
-    <uses-permission
-        android:name="android.permission.READ_WALLPAPER_INTERNAL"
-        tools:ignore="ProtectedPermissions" />
 
     <uses-feature android:glEsVersion="0x00020000" android:required="true" />
 
@@ -31,7 +20,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Orbit.Splash">
 
-        <!-- Settings entry point (shown in app drawer) -->
         <activity
             android:name=".settings.SettingsActivity"
             android:exported="true"
@@ -40,14 +28,12 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Also reachable from screensaver settings cog -->
             <intent-filter>
                 <action android:name="android.service.dreams.DreamService" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
-        <!-- DreamService — the actual screensaver -->
         <service
             android:name=".dream.OrbitDreamService"
             android:exported="true"
@@ -61,17 +47,6 @@
                 android:name="android.service.dream"
                 android:resource="@xml/dream_info" />
         </service>
-
-        <!-- FileProvider for APK installs -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.provider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
 
     </application>
 </manifest>
