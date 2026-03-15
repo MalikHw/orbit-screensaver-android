@@ -34,13 +34,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.malikhw.orbit.BuildConfig
 import com.malikhw.orbit.update.UpdateChecker
 import kotlinx.coroutines.launch
 
-// ── Build-time flag: set to false in the Play Store product flavor ─────────────
-// For the PS variant, define ENABLE_UPDATER = false in your flavor's BuildConfig
-// or simply replace this value with `false` in the ps-specific source set.
-const val ENABLE_UPDATER = BuildConfig.ENABLE_UPDATER
+// Reads the boolean injected by the product flavor in build.gradle
+private val ENABLE_UPDATER: Boolean get() = BuildConfig.ENABLE_UPDATER
 
 class SettingsActivity : ComponentActivity() {
 
