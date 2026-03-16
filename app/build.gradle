@@ -5,14 +5,14 @@ plugins {
 
 android {
     namespace 'com.malikhw.orbit'
-    compileSdk 36
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.malikhw.orbit"
-        minSdk 30
-        targetSdk 36
-        versionCode 32
-        versionName "20260316-125610"
+        minSdk 29
+        targetSdk 35
+        versionCode 12
+        versionName "20260313-085131"
 
         externalNativeBuild {
             cmake {
@@ -25,7 +25,7 @@ android {
         }
     }
 
-    // Product flavors
+    // ── Product flavors ───────────────────────────────────────────────────────
     flavorDimensions "distribution"
 
     productFlavors {
@@ -35,10 +35,8 @@ android {
         }
         playstore {
             dimension "distribution"
-            // Self-update checker disabled (Play Store policy)
             buildConfigField "boolean", "ENABLE_UPDATER", "false"
-            // Separate app ID so both can coexist if needed
-            applicationIdSuffix ".pstest"
+            applicationIdSuffix ".ps"
         }
     }
 
@@ -99,7 +97,8 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.core:core-splashscreen:1.0.1'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
-    implementation 'androidx.activity:activity-compose:1.8.2'
+    implementation 'androidx.activity:activity-compose:1.9.0'
+    implementation 'androidx.activity:activity-ktx:1.9.0'
     implementation 'androidx.preference:preference-ktx:1.2.1'
 
     // Coroutines for update checker
