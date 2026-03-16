@@ -1,12 +1,8 @@
 package com.malikhw.orbit.settings
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
@@ -33,62 +29,42 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import com.malikhw.orbit.BuildConfig
 import com.malikhw.orbit.update.UpdateChecker
 import kotlinx.coroutines.launch
 
-// Reads the boolean injected by the product flavor in build.gradle
 private val ENABLE_UPDATER: Boolean get() = BuildConfig.ENABLE_UPDATER
 
 class SettingsActivity : ComponentActivity() {
 
-    // Storage permission launcher (legacy Android 10–12)
     private var pendingImageCallback: ((Uri?) -> Unit)? = null
 
-    private val requestStoragePermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) {
-                // Re-open the legacy picker after permission granted
-                openLegacyImagePicker()
-            }
-        }
-
-    private val legacyImagePicker =
+    private val imagePickerLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             pendingImageCallback?.invoke(result.data?.data)
             pendingImageCallback = null
         }
 
-    /** Opens an image picker, using the legacy MediaStore picker on API < 33. */
+    /**
+     * Launches the backported photo picker (works on all API levels with Play Services).
+     * Falls back to ACTION_GET_CONTENT for de-Googled devices (GrapheneOS, Aurora etc.).
+     * No storage permission needed either way on API 29+.
+     */
     fun launchImagePicker(onResult: (Uri?) -> Unit) {
         pendingImageCallback = onResult
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13+ — use the modern photo picker (no permission needed)
-            val intent = Intent(MediaStore.ACTION_PICK_IMAGES).apply {
-                type = "image/*"
-            }
-            legacyImagePicker.launch(intent)
-        } else {
-            // Android 10–12 — need READ_EXTERNAL_STORAGE
-            val hasPermission = ContextCompat.checkSelfPermission(
-                this, Manifest.permission.READ_EXTERNAL_STORAGE
-            ) == PackageManager.PERMISSION_GRANTED
-
-            if (hasPermission) {
-                openLegacyImagePicker()
-            } else {
-                requestStoragePermission.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
-            }
-        }
-    }
-
-    private fun openLegacyImagePicker() {
-        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+        val photoPickerIntent = Intent(MediaStore.ACTION_PICK_IMAGES).apply {
             type = "image/*"
-            addCategory(Intent.CATEGORY_OPENABLE)
         }
-        legacyImagePicker.launch(intent)
+        if (photoPickerIntent.resolveActivity(packageManager) != null) {
+            imagePickerLauncher.launch(photoPickerIntent)
+        } else {
+            // Fallback for de-Googled devices
+            val fallbackIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                type = "image/*"
+                addCategory(Intent.CATEGORY_OPENABLE)
+            }
+            imagePickerLauncher.launch(fallbackIntent)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -142,16 +118,14 @@ fun SettingsScreen(activity: SettingsActivity) {
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
     var saveToast   by remember { mutableStateOf(false) }
 
-    // ── Image pickers (activity-level, supports legacy Android 10-12) ─────────
     fun pickBgImage() {
         activity.launchImagePicker { uri ->
             uri?.let {
-                // Persist permission only on API 19+ (always true for minSdk 29)
                 try {
                     context.contentResolver.takePersistableUriPermission(
                         it, Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
-                } catch (_: Exception) { /* legacy URIs may not be persistable */ }
+                } catch (_: Exception) { }
                 bgImageUri = it.toString()
                 prefs.bgImageUri = it.toString()
             }
