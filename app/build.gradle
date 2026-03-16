@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId "com.malikhw.orbit"
-        minSdk 29
+        minSdk 30
         targetSdk 36
         versionCode 30
         versionName "20260316-122556"
@@ -31,7 +31,6 @@ android {
     productFlavors {
         full {
             dimension "distribution"
-            // Self-update checker enabled
             buildConfigField "boolean", "ENABLE_UPDATER", "true"
         }
         playstore {
