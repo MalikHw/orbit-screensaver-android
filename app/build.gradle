@@ -38,7 +38,7 @@ android {
             // Self-update checker disabled (Play Store policy)
             buildConfigField "boolean", "ENABLE_UPDATER", "false"
             // Separate app ID so both can coexist if needed
-            applicationIdSuffix ".ps"
+            applicationIdSuffix ".pstest"
         }
     }
 
