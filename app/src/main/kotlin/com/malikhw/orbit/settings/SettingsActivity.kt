@@ -3,11 +3,11 @@ package com.malikhw.orbit.settings
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,32 +39,20 @@ class SettingsActivity : ComponentActivity() {
 
     private var pendingImageCallback: ((Uri?) -> Unit)? = null
 
+    // Jetpack photo picker — works on API 29+ with no storage permission.
+    // Uses native picker on API 33+, backported picker on API 30-32 via Play Services,
+    // and a graceful system fallback on API 29 — all without READ_EXTERNAL_STORAGE.
     private val imagePickerLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            pendingImageCallback?.invoke(result.data?.data)
+        registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            pendingImageCallback?.invoke(uri)
             pendingImageCallback = null
         }
 
-    /**
-     * Launches the backported photo picker (works on all API levels with Play Services).
-     * Falls back to ACTION_GET_CONTENT for de-Googled devices (GrapheneOS, Aurora etc.).
-     * No storage permission needed either way on API 29+.
-     */
     fun launchImagePicker(onResult: (Uri?) -> Unit) {
         pendingImageCallback = onResult
-        val photoPickerIntent = Intent(MediaStore.ACTION_PICK_IMAGES).apply {
-            type = "image/*"
-        }
-        if (photoPickerIntent.resolveActivity(packageManager) != null) {
-            imagePickerLauncher.launch(photoPickerIntent)
-        } else {
-            // Fallback for de-Googled devices
-            val fallbackIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                type = "image/*"
-                addCategory(Intent.CATEGORY_OPENABLE)
-            }
-            imagePickerLauncher.launch(fallbackIntent)
-        }
+        imagePickerLauncher.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
