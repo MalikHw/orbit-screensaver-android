@@ -5,9 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,7 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.malikhw.orbit.BuildConfig
@@ -39,20 +39,32 @@ class SettingsActivity : ComponentActivity() {
 
     private var pendingImageCallback: ((Uri?) -> Unit)? = null
 
-    // Jetpack photo picker — works on API 29+ with no storage permission.
-    // Uses native picker on API 33+, backported picker on API 30-32 via Play Services,
-    // and a graceful system fallback on API 29 — all without READ_EXTERNAL_STORAGE.
+    // ACTION_OPEN_DOCUMENT gives a persistable URI that survives reboots
+    // when combined with takePersistableUriPermission()
     private val imagePickerLauncher =
-        registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val uri = result.data?.data
+            uri?.let {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        it, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) { }
+            }
             pendingImageCallback?.invoke(uri)
             pendingImageCallback = null
         }
 
     fun launchImagePicker(onResult: (Uri?) -> Unit) {
         pendingImageCallback = onResult
-        imagePickerLauncher.launch(
-            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-        )
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            type = "image/*"
+            addCategory(Intent.CATEGORY_OPENABLE)
+            // Request persistable permission upfront
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        imagePickerLauncher.launch(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -109,11 +121,6 @@ fun SettingsScreen(activity: SettingsActivity) {
     fun pickBgImage() {
         activity.launchImagePicker { uri ->
             uri?.let {
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        it, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (_: Exception) { }
                 bgImageUri = it.toString()
                 prefs.bgImageUri = it.toString()
             }
@@ -123,11 +130,6 @@ fun SettingsScreen(activity: SettingsActivity) {
     fun pickCubeImage() {
         activity.launchImagePicker { uri ->
             uri?.let {
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        it, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (_: Exception) { }
                 cubeUri = it.toString()
                 prefs.cubeImageUri = it.toString()
             }
@@ -402,6 +404,17 @@ fun SettingsScreen(activity: SettingsActivity) {
                     modifier = Modifier.padding(horizontal = 4.dp))
             }
 
+            // ── Disclaimer ────────────────────────────────────────────────────
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Disclaimer: some assets are NOT by me, they're by RobtopGames from the game Geometry Dash.",
+                style = MaterialTheme.typography.bodySmall,
+                fontStyle = FontStyle.Italic,
+                color = Color.Gray,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+            )
+
             Spacer(Modifier.height(24.dp))
         }
 
@@ -477,7 +490,7 @@ sealed class UpdateState {
     data class Result(val info: UpdateChecker.ReleaseInfo) : UpdateState()
 }
 
-// ── Util ──────────────────────────────────────────────────────────────────────
+// util
 
 fun uriFilename(context: android.content.Context, uriString: String): String {
     return try {
