@@ -15,8 +15,8 @@
         android:theme="@style/Theme.Orbit.Splash"
         
         <meta-data
-    android:name="com.google.android.gms.ads.APPLICATION_ID"
-    android:value="ca-app-pub-2613515169840820~4998137503"/>>
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-2613515169840820~4998137503"/>
 
         <activity
             android:name=".settings.SettingsActivity"
