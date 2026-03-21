@@ -12,7 +12,11 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Orbit.Splash">
+        android:theme="@style/Theme.Orbit.Splash"
+        
+        <meta-data
+    android:name="com.google.android.gms.ads.APPLICATION_ID"
+    android:value="ca-app-pub-2613515169840820~4998137503"/>>
 
         <activity
             android:name=".settings.SettingsActivity"
