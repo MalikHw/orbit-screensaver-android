@@ -32,6 +32,12 @@ import androidx.compose.ui.unit.sp
 import com.malikhw.orbit.BuildConfig
 import com.malikhw.orbit.update.UpdateChecker
 import kotlinx.coroutines.launch
+// ads
+import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.RequestConfiguration
+import androidx.compose.ui.viewinterop.AndroidView
+import com.google.android.gms.ads.*
+import com.malikhw.orbit.ads.AdIds
 
 private val ENABLE_UPDATER: Boolean get() = BuildConfig.ENABLE_UPDATER
 
@@ -70,6 +76,10 @@ class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         actionBar?.hide()
+
+        // Initialize AdMob (once per app launch is fine)
+        MobileAds.initialize(this)
+
         setContent {
             OrbitTheme {
                 SettingsScreen(activity = this)
@@ -500,4 +510,18 @@ fun uriFilename(context: android.content.Context, uriString: String): String {
             if (cursor.moveToFirst() && idx >= 0) cursor.getString(idx) else uriString
         } ?: uriString
     } catch (e: Exception) { uriString }
+}
+
+@Composable
+fun BannerAd(adUnitId: String) {
+    AndroidView(
+        modifier = Modifier.fillMaxWidth(),
+        factory = { context ->
+            AdView(context).apply {
+                setAdSize(AdSize.BANNER)
+                this.adUnitId = adUnitId
+                loadAd(AdRequest.Builder().build())
+            }
+        }
+    )
 }
