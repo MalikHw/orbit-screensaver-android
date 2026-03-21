@@ -102,9 +102,13 @@ jobs:
           sed -i '1s/^\xEF\xBB\xBF//' app/src/main/AndroidManifest.xml
           sed -i '1s/^\xFF\xFE//' app/src/main/AndroidManifest.xml
 
-      # ── Build all four variants ─────────────────────────────────────────────
-      # fullRelease   → APK + AAB
-      # playstoreRelease → APK + AAB
+      - name: Inject AdMob secrets into local.properties
+        run: |
+          echo "ADMOB_APP_ID=${{ secrets.ADMOB_APP_ID }}" >> local.properties
+          echo "ADMOB_BANNER_TOP=${{ secrets.ADMOB_BANNER_TOP }}" >> local.properties
+          echo "ADMOB_BANNER_BOTTOM=${{ secrets.ADMOB_BANNER_BOTTOM }}" >> local.properties
+          echo "ADMOB_INTERSTITIAL=${{ secrets.ADMOB_INTERSTITIAL }}" >> local.properties
+
       - name: Build release APKs
         run: ./gradlew assembleFullRelease assemblePlaystoreRelease --stacktrace
         env:
