@@ -3,6 +3,13 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+// Load local.properties (contains AdMob IDs, never committed to git)
+def localProps = new Properties()
+def localPropsFile = rootProject.file("local.properties")
+if (localPropsFile.exists()) {
+    localProps.load(new FileInputStream(localPropsFile))
+}
+
 android {
     namespace 'com.malikhw.orbit'
     compileSdk 34
@@ -11,8 +18,8 @@ android {
         applicationId "com.malikhw.orbit"
         minSdk 29
         targetSdk 35
-        versionCode 33
-        versionName "20260321-152849"
+        versionCode 24
+        versionName "20260317-153659"
 
         externalNativeBuild {
             cmake {
@@ -23,6 +30,14 @@ android {
         ndk {
             abiFilters "arm64-v8a", "x86_64"
         }
+
+        // Inject AdMob IDs as BuildConfig fields and manifest placeholder
+        buildConfigField "String", "ADMOB_APP_ID",        "\"${localProps['ADMOB_APP_ID']}\""
+        buildConfigField "String", "ADMOB_BANNER_TOP",    "\"${localProps['ADMOB_BANNER_TOP']}\""
+        buildConfigField "String", "ADMOB_BANNER_BOTTOM", "\"${localProps['ADMOB_BANNER_BOTTOM']}\""
+        buildConfigField "String", "ADMOB_INTERSTITIAL",  "\"${localProps['ADMOB_INTERSTITIAL']}\""
+
+        manifestPlaceholders = [admobAppId: localProps['ADMOB_APP_ID'] ?: ""]
     }
 
     // ── Product flavors ───────────────────────────────────────────────────────
@@ -87,8 +102,6 @@ dependencies {
     def composeBom = platform('androidx.compose:compose-bom:2024.02.00')
     implementation composeBom
 
-    implementation 'com.google.android.gms:play-services-ads:23.1.0'
-
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
     implementation 'androidx.compose.ui:ui-tooling-preview'
@@ -108,6 +121,9 @@ dependencies {
 
     // Coil for image loading in settings preview
     implementation 'io.coil-kt:coil-compose:2.5.0'
+
+    // AdMob
+    implementation 'com.google.android.gms:play-services-ads:23.1.0'
 
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
