@@ -14,11 +14,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Orbit.Splash">
 
-        <!-- AdMob App ID (value injected from local.properties via build.gradle) -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="${admobAppId}"/>
-
         <activity
             android:name=".settings.SettingsActivity"
             android:exported="true"

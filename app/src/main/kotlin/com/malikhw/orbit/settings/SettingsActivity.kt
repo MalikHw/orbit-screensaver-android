@@ -29,16 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.AdSize
-import com.google.android.gms.ads.AdView
-import com.google.android.gms.ads.LoadAdError
-import com.google.android.gms.ads.MobileAds
-import com.google.android.gms.ads.interstitial.InterstitialAd
-import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.malikhw.orbit.BuildConfig
-import com.malikhw.orbit.ads.AdIds
 import com.malikhw.orbit.update.UpdateChecker
 import kotlinx.coroutines.launch
 
@@ -48,6 +39,8 @@ class SettingsActivity : ComponentActivity() {
 
     private var pendingImageCallback: ((Uri?) -> Unit)? = null
 
+    // ACTION_OPEN_DOCUMENT gives a persistable URI that survives reboots
+    // when combined with takePersistableUriPermission()
     private val imagePickerLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val uri = result.data?.data
@@ -67,6 +60,7 @@ class SettingsActivity : ComponentActivity() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             type = "image/*"
             addCategory(Intent.CATEGORY_OPENABLE)
+            // Request persistable permission upfront
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         }
@@ -76,10 +70,6 @@ class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         actionBar?.hide()
-
-        // Initialize AdMob
-        MobileAds.initialize(this)
-
         setContent {
             OrbitTheme {
                 SettingsScreen(activity = this)
@@ -106,22 +96,6 @@ fun OrbitTheme(content: @Composable () -> Unit) {
     )
 }
 
-// ── AdMob banner composable ───────────────────────────────────────────────────
-
-@Composable
-fun BannerAd(adUnitId: String) {
-    AndroidView(
-        modifier = Modifier.fillMaxWidth(),
-        factory = { context ->
-            AdView(context).apply {
-                setAdSize(AdSize.BANNER)
-                this.adUnitId = adUnitId
-                loadAd(AdRequest.Builder().build())
-            }
-        }
-    )
-}
-
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -143,25 +117,6 @@ fun SettingsScreen(activity: SettingsActivity) {
 
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
     var saveToast   by remember { mutableStateOf(false) }
-
-    // ── Interstitial ad ───────────────────────────────────────────────────────
-    var interstitialAd by remember { mutableStateOf<InterstitialAd?>(null) }
-
-    LaunchedEffect(Unit) {
-        InterstitialAd.load(
-            activity,
-            AdIds.INTERSTITIAL,
-            AdRequest.Builder().build(),
-            object : InterstitialAdLoadCallback() {
-                override fun onAdLoaded(ad: InterstitialAd) {
-                    interstitialAd = ad
-                }
-                override fun onAdFailedToLoad(error: LoadAdError) {
-                    interstitialAd = null
-                }
-            }
-        )
-    }
 
     fun pickBgImage() {
         activity.launchImagePicker { uri ->
@@ -193,10 +148,6 @@ fun SettingsScreen(activity: SettingsActivity) {
         prefs.orbCount   = orbCount
         prefs.cubeChance = cubeChance
         saveToast = true
-
-        // Show interstitial after saving (if loaded)
-        interstitialAd?.show(activity)
-        interstitialAd = null  // prevent showing twice
     }
 
     Scaffold(
@@ -221,264 +172,251 @@ fun SettingsScreen(activity: SettingsActivity) {
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
 
-        Column(modifier = Modifier.fillMaxSize()) {
+            // ── Physics ───────────────────────────────────────────────────────
+            SectionCard("Physics") {
+                LabeledSlider("Speed: $speed", speed.toFloat(), 1f, 20f) { speed = it.toInt() }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Infinite fall", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = noGround, onCheckedChange = { noGround = it })
+                }
+            }
 
-            // ── TOP BANNER ────────────────────────────────────────────────────
-            BannerAd(adUnitId = AdIds.BANNER_TOP)
-
-            // ── Scrollable settings content ───────────────────────────────────
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-
-                // ── Physics ───────────────────────────────────────────────────
-                SectionCard("Physics") {
-                    LabeledSlider("Speed: $speed", speed.toFloat(), 1f, 20f) { speed = it.toInt() }
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Infinite fall", style = MaterialTheme.typography.bodyMedium)
-                        Switch(checked = noGround, onCheckedChange = { noGround = it })
+            // ── Orbs ──────────────────────────────────────────────────────────
+            SectionCard("Orbs") {
+                LabeledSlider("Count: $orbCount", orbCount.toFloat(), 1f, 300f) { orbCount = it.toInt() }
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("Low" to 30, "Med" to 80, "High" to 120, "Giga" to 210).forEach { (label, v) ->
+                        FilterChip(selected = orbCount == v, onClick = { orbCount = v }, label = { Text(label) })
                     }
                 }
-
-                // ── Orbs ──────────────────────────────────────────────────────
-                SectionCard("Orbs") {
-                    LabeledSlider("Count: $orbCount", orbCount.toFloat(), 1f, 300f) { orbCount = it.toInt() }
-                    Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Low" to 30, "Med" to 80, "High" to 120, "Giga" to 210).forEach { (label, v) ->
-                            FilterChip(selected = orbCount == v, onClick = { orbCount = v }, label = { Text(label) })
-                        }
+                Spacer(Modifier.height(8.dp))
+                LabeledSlider("Size: ${"%.1f".format(orbScale)}×", orbScale, 0.3f, 3.0f) { orbScale = it }
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("S" to 0.5f, "M" to 1.0f, "L" to 1.5f, "XL" to 2.0f).forEach { (label, v) ->
+                        FilterChip(selected = orbScale == v, onClick = { orbScale = v }, label = { Text(label) })
                     }
-                    Spacer(Modifier.height(8.dp))
-                    LabeledSlider("Size: ${"%.1f".format(orbScale)}×", orbScale, 0.3f, 3.0f) { orbScale = it }
-                    Spacer(Modifier.height(4.dp))
+                }
+            }
+
+            // ── Cube ──────────────────────────────────────────────────────────
+            SectionCard("Cube") {
+                LabeledSlider("Spawn chance: $cubeChance%", cubeChance.toFloat(), 0f, 100f) { cubeChance = it.toInt() }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Custom cube image", style = MaterialTheme.typography.bodyMedium)
+                        if (cubeUri != null)
+                            Text(uriFilename(context, cubeUri!!), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        else
+                            Text("Using bundled default", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("S" to 0.5f, "M" to 1.0f, "L" to 1.5f, "XL" to 2.0f).forEach { (label, v) ->
-                            FilterChip(selected = orbScale == v, onClick = { orbScale = v }, label = { Text(label) })
+                        OutlinedButton(onClick = { pickCubeImage() }) { Text("Browse") }
+                        if (cubeUri != null) {
+                            OutlinedButton(onClick = { cubeUri = null; prefs.cubeImageUri = null }) { Text("Reset") }
                         }
                     }
                 }
+            }
 
-                // ── Cube ──────────────────────────────────────────────────────
-                SectionCard("Cube") {
-                    LabeledSlider("Spawn chance: $cubeChance%", cubeChance.toFloat(), 0f, 100f) { cubeChance = it.toInt() }
-                    Spacer(Modifier.height(8.dp))
+            // ── Background ────────────────────────────────────────────────────
+            SectionCard("Background") {
+                val bgOptions = listOf("Black" to OrbitPrefs.BG_BLACK, "Color" to OrbitPrefs.BG_COLOR, "Image" to OrbitPrefs.BG_IMAGE)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    bgOptions.forEach { (label, value) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                                .clickable { bgMode = value }.padding(vertical = 6.dp, horizontal = 4.dp)
+                        ) {
+                            RadioButton(selected = bgMode == value, onClick = { bgMode = value })
+                            Spacer(Modifier.width(8.dp))
+                            Text(label, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+                if (bgMode == OrbitPrefs.BG_COLOR) {
+                    Spacer(Modifier.height(12.dp))
+                    ColorPickerRow(bgColor) { bgColor = it }
+                }
+                if (bgMode == OrbitPrefs.BG_IMAGE) {
+                    Spacer(Modifier.height(12.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Custom cube image", style = MaterialTheme.typography.bodyMedium)
-                            if (cubeUri != null)
-                                Text(uriFilename(context, cubeUri!!), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                            Text("Background image", style = MaterialTheme.typography.bodyMedium)
+                            if (bgImageUri != null)
+                                Text(uriFilename(context, bgImageUri!!), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                             else
-                                Text("Using bundled default", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                Text("None selected", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            OutlinedButton(onClick = { pickCubeImage() }) { Text("Browse") }
-                            if (cubeUri != null) {
-                                OutlinedButton(onClick = { cubeUri = null; prefs.cubeImageUri = null }) { Text("Reset") }
-                            }
-                        }
+                        OutlinedButton(onClick = { pickBgImage() }) { Text("Browse") }
                     }
                 }
+            }
 
-                // ── Background ────────────────────────────────────────────────
-                SectionCard("Background") {
-                    val bgOptions = listOf("Black" to OrbitPrefs.BG_BLACK, "Color" to OrbitPrefs.BG_COLOR, "Image" to OrbitPrefs.BG_IMAGE)
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        bgOptions.forEach { (label, value) ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                                    .clickable { bgMode = value }.padding(vertical = 6.dp, horizontal = 4.dp)
-                            ) {
-                                RadioButton(selected = bgMode == value, onClick = { bgMode = value })
-                                Spacer(Modifier.width(8.dp))
-                                Text(label, style = MaterialTheme.typography.bodyMedium)
+            // ── Updates (hidden in Play Store variant) ────────────────────────
+            if (ENABLE_UPDATER) {
+                SectionCard("Updates") {
+                    val scope = rememberCoroutineScope()
+                    when (val state = updateState) {
+                        is UpdateState.Idle -> {
+                            Button(
+                                onClick = {
+                                    updateState = UpdateState.Checking
+                                    scope.launch {
+                                        val info = UpdateChecker.fetchLatest()
+                                        updateState = if (info == null) UpdateState.Error("Could not reach GitHub")
+                                        else UpdateState.Result(info)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Check for updates") }
+                        }
+                        is UpdateState.Checking -> {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Text("Checking…", color = Color.Yellow)
                             }
                         }
-                    }
-                    if (bgMode == OrbitPrefs.BG_COLOR) {
-                        Spacer(Modifier.height(12.dp))
-                        ColorPickerRow(bgColor) { bgColor = it }
-                    }
-                    if (bgMode == OrbitPrefs.BG_IMAGE) {
-                        Spacer(Modifier.height(12.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Background image", style = MaterialTheme.typography.bodyMedium)
-                                if (bgImageUri != null)
-                                    Text(uriFilename(context, bgImageUri!!), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                                else
-                                    Text("None selected", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                            }
-                            OutlinedButton(onClick = { pickBgImage() }) { Text("Browse") }
+                        is UpdateState.Error -> {
+                            Text("Error: ${state.message}", color = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.height(4.dp))
+                            OutlinedButton(onClick = { updateState = UpdateState.Idle }) { Text("Retry") }
                         }
-                    }
-                }
-
-                // ── Updates (hidden in Play Store variant) ────────────────────
-                if (ENABLE_UPDATER) {
-                    SectionCard("Updates") {
-                        val scope = rememberCoroutineScope()
-                        when (val state = updateState) {
-                            is UpdateState.Idle -> {
+                        is UpdateState.Result -> {
+                            val appVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName
+                            if (state.info.tag == appVersion || state.info.tag == "v$appVersion") {
+                                Text("✓ You're up to date! (${state.info.tag})", color = MaterialTheme.colorScheme.secondary)
+                            } else {
+                                Text("Update available: ${state.info.tag}", color = Color(0xFFFF9800))
+                                Spacer(Modifier.height(8.dp))
                                 Button(
                                     onClick = {
-                                        updateState = UpdateState.Checking
+                                        updateState = UpdateState.Downloading(0)
                                         scope.launch {
-                                            val info = UpdateChecker.fetchLatest()
-                                            updateState = if (info == null) UpdateState.Error("Could not reach GitHub")
-                                            else UpdateState.Result(info)
+                                            try {
+                                                UpdateChecker.downloadAndInstall(context, state.info) { progress ->
+                                                    updateState = UpdateState.Downloading(progress)
+                                                }
+                                                updateState = UpdateState.Idle
+                                            } catch (e: Exception) {
+                                                updateState = UpdateState.Error("Download failed: ${e.message}")
+                                            }
                                         }
                                     },
                                     modifier = Modifier.fillMaxWidth()
-                                ) { Text("Check for updates") }
+                                ) { Text("Download & Install") }
                             }
-                            is UpdateState.Checking -> {
+                        }
+                        is UpdateState.Downloading -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                    Text("Checking…", color = Color.Yellow)
+                                    Text("Downloading… ${state.progress}%", color = Color.Yellow)
                                 }
-                            }
-                            is UpdateState.Error -> {
-                                Text("Error: ${state.message}", color = MaterialTheme.colorScheme.error)
-                                Spacer(Modifier.height(4.dp))
-                                OutlinedButton(onClick = { updateState = UpdateState.Idle }) { Text("Retry") }
-                            }
-                            is UpdateState.Result -> {
-                                val appVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName
-                                if (state.info.tag == appVersion || state.info.tag == "v$appVersion") {
-                                    Text("✓ You're up to date! (${state.info.tag})", color = MaterialTheme.colorScheme.secondary)
-                                } else {
-                                    Text("Update available: ${state.info.tag}", color = Color(0xFFFF9800))
-                                    Spacer(Modifier.height(8.dp))
-                                    Button(
-                                        onClick = {
-                                            updateState = UpdateState.Downloading(0)
-                                            scope.launch {
-                                                try {
-                                                    UpdateChecker.downloadAndInstall(context, state.info) { progress ->
-                                                        updateState = UpdateState.Downloading(progress)
-                                                    }
-                                                    updateState = UpdateState.Idle
-                                                } catch (e: Exception) {
-                                                    updateState = UpdateState.Error("Download failed: ${e.message}")
-                                                }
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) { Text("Download & Install") }
-                                }
-                            }
-                            is UpdateState.Downloading -> {
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                        Text("Downloading… ${state.progress}%", color = Color.Yellow)
-                                    }
-                                    LinearProgressIndicator(
-                                        progress = { state.progress / 100f },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
+                                LinearProgressIndicator(
+                                    progress = { state.progress / 100f },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
                     }
                 }
+            }
 
-                // ── Links ─────────────────────────────────────────────────────
-                SectionCard("Author") {
-                    val links = listOf(
-                        "Website" to "https://malikhw.github.io",
-                        "YouTube" to "https://youtube.com/@MalikHw47",
-                        "GitHub"  to "https://github.com/MalikHw",
-                        "Twitch"  to "https://twitch.tv/MalikHw47",
-                        "Discord" to "https://discord.gg/G9bZ92eg2n",
-                        "Ko-fi"   to "https://ko-fi.com/malikhw47",
-                        "Throne"  to "https://throne.com/MalikHw47",
-                    )
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        links.chunked(3).forEach { row ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                row.forEach { (label, url) ->
-                                    OutlinedButton(
-                                        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
-                                        modifier = Modifier.weight(1f),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
-                                    ) { Text(label, fontSize = 12.sp) }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ── Bottom save ───────────────────────────────────────────────
-                Button(onClick = { save() }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
-                    Icon(Icons.Default.Save, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Save Settings", fontSize = 16.sp)
-                }
-
-                var dreamSettingsError by remember { mutableStateOf(false) }
-                OutlinedButton(
-                    onClick = {
-                        try {
-                            context.startActivity(Intent().apply {
-                                setClassName("com.android.settings", "com.android.settings.Settings\$DreamSettingsActivity")
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            })
-                            dreamSettingsError = false
-                        } catch (e: Exception) { dreamSettingsError = true }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(50.dp)
-                ) {
-                    Icon(Icons.Default.PhoneAndroid, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Open Android Screensaver Settings", fontSize = 14.sp)
-                }
-                if (dreamSettingsError) {
-                    Text("⚠ Couldn't open screensaver settings on this device",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(horizontal = 4.dp))
-                }
-
-                // ── Disclaimer ────────────────────────────────────────────────
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "Disclaimer: some assets are NOT by me, they're by RobtopGames from the game Geometry Dash.",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontStyle = FontStyle.Italic,
-                    color = Color.Gray,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+            // ── Links ─────────────────────────────────────────────────────────
+            SectionCard("Author") {
+                val links = listOf(
+                    "Website" to "https://malikhw.github.io",
+                    "YouTube" to "https://youtube.com/@MalikHw47",
+                    "GitHub"  to "https://github.com/MalikHw",
+                    "Twitch"  to "https://twitch.tv/MalikHw47",
+                    "Discord" to "https://discord.gg/G9bZ92eg2n",
+                    "Ko-fi"   to "https://ko-fi.com/malikhw47",
+                    "Throne"  to "https://throne.com/MalikHw47",
                 )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    links.chunked(3).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.forEach { (label, url) ->
+                                OutlinedButton(
+                                    onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                                ) { Text(label, fontSize = 12.sp) }
+                            }
+                        }
+                    }
+                }
+            }
 
-                Spacer(Modifier.height(24.dp))
-            } // end scrollable column
+            // ── Bottom save ───────────────────────────────────────────────────
+            Button(onClick = { save() }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
+                Icon(Icons.Default.Save, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Save Settings", fontSize = 16.sp)
+            }
 
-            // ── BOTTOM BANNER ─────────────────────────────────────────────────
-            BannerAd(adUnitId = AdIds.BANNER_BOTTOM)
+            var dreamSettingsError by remember { mutableStateOf(false) }
+            OutlinedButton(
+                onClick = {
+                    try {
+                        context.startActivity(Intent().apply {
+                            setClassName("com.android.settings", "com.android.settings.Settings\$DreamSettingsActivity")
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        })
+                        dreamSettingsError = false
+                    } catch (e: Exception) { dreamSettingsError = true }
+                },
+                modifier = Modifier.fillMaxWidth().height(50.dp)
+            ) {
+                Icon(Icons.Default.PhoneAndroid, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Open Android Screensaver Settings", fontSize = 14.sp)
+            }
+            if (dreamSettingsError) {
+                Text("⚠ Couldn't open screensaver settings on this device",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 4.dp))
+            }
 
-        } // end outer column
+            // ── Disclaimer ────────────────────────────────────────────────────
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Disclaimer: some assets are NOT by me, they're by RobtopGames from the game Geometry Dash.",
+                style = MaterialTheme.typography.bodySmall,
+                fontStyle = FontStyle.Italic,
+                color = Color.Gray,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+            )
+
+            Spacer(Modifier.height(24.dp))
+        }
 
         if (saveToast) {
             LaunchedEffect(Unit) {
@@ -552,7 +490,7 @@ sealed class UpdateState {
     data class Result(val info: UpdateChecker.ReleaseInfo) : UpdateState()
 }
 
-// ── Util ──────────────────────────────────────────────────────────────────────
+// util
 
 fun uriFilename(context: android.content.Context, uriString: String): String {
     return try {
