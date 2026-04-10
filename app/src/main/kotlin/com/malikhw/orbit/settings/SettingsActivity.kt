@@ -78,7 +78,6 @@ class SettingsActivity : ComponentActivity() {
     }
 }
 
-// ── Theme ─────────────────────────────────────────────────────────────────────
 
 @Composable
 fun OrbitTheme(content: @Composable () -> Unit) {
@@ -96,7 +95,6 @@ fun OrbitTheme(content: @Composable () -> Unit) {
     )
 }
 
-// ── Main screen ───────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -180,7 +178,6 @@ fun SettingsScreen(activity: SettingsActivity) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
-            // ── Physics ───────────────────────────────────────────────────────
             SectionCard("Physics") {
                 LabeledSlider("Speed: $speed", speed.toFloat(), 1f, 20f) { speed = it.toInt() }
                 Spacer(Modifier.height(8.dp))
@@ -194,7 +191,7 @@ fun SettingsScreen(activity: SettingsActivity) {
                 }
             }
 
-            // ── Orbs ──────────────────────────────────────────────────────────
+
             SectionCard("Orbs") {
                 LabeledSlider("Count: $orbCount", orbCount.toFloat(), 1f, 300f) { orbCount = it.toInt() }
                 Spacer(Modifier.height(4.dp))
@@ -213,7 +210,6 @@ fun SettingsScreen(activity: SettingsActivity) {
                 }
             }
 
-            // ── Cube ──────────────────────────────────────────────────────────
             SectionCard("Cube") {
                 LabeledSlider("Spawn chance: $cubeChance%", cubeChance.toFloat(), 0f, 100f) { cubeChance = it.toInt() }
                 Spacer(Modifier.height(8.dp))
@@ -223,7 +219,7 @@ fun SettingsScreen(activity: SettingsActivity) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Custom cube image", style = MaterialTheme.typography.bodyMedium)
+                        Text("custom cube image", style = MaterialTheme.typography.bodyMedium)
                         if (cubeUri != null)
                             Text(uriFilename(context, cubeUri!!), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                         else
