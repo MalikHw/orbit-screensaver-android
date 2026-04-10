@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(orbit_native)
 
-# ── Box2D v2.4.1 (fetched at configure time via FetchContent) ──────────────────
+# box2d
 include(FetchContent)
 FetchContent_Declare(
     box2d
@@ -13,11 +13,10 @@ set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 set(BOX2D_BUILD_TESTBED    OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(box2d)
 
-# ── stb_image (header-only, vendored in cpp/include/) ─────────────────────────
-# Just needs to be in the include path; we define STB_IMAGE_IMPLEMENTATION
-# in one .cpp file.
+# stb
+# Just needs to be in the include path; we define STB_IMAGE_IMPLEMENTATION in one .cpp file.
 
-# ── Main JNI library ───────────────────────────────────────────────────────────
+# jni
 add_library(
     orbit_native
     SHARED
@@ -43,3 +42,5 @@ target_compile_options(orbit_native PRIVATE
     -Wall
     -Wno-unused-parameter
 )
+
+target_link_options(${PROJECT_NAME} PRIVATE "-Wl,-z,max-page-size=16384")
