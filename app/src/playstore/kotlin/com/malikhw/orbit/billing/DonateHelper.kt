@@ -2,8 +2,7 @@ package com.malikhw.orbit.billing
 
 import android.app.Activity
 import android.content.Context
-import com.android.billingclient.api.*
-import kotlinx.coroutines.*
+import com.android.billingclient.api.*import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -35,19 +34,18 @@ class DonateHelper(private val context: Context, private val onPurchaseSuccess: 
         _state.value = State.Connecting
         billingClient = BillingClient.newBuilder(context)
             .setListener { result, purchases ->
-                // Handle purchase updates — use GlobalScope so this survives dialog close
+                // Handle purchase updates, use GlobalScope so this survives dialog close
                 if (result.responseCode == BillingClient.BillingResponseCode.OK) {
                     purchases?.forEach { purchase ->
-                        if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED
-                            && !purchase.isAcknowledged) {
+                        if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
                             kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                val ackParams = AcknowledgePurchaseParams.newBuilder()
+                                val consumeParams = ConsumeParams.newBuilder()
                                     .setPurchaseToken(purchase.purchaseToken)
                                     .build()
                                 // retry up to 3 times in case of failure
                                 repeat(3) { attempt ->
-                                    val ackResult = billingClient?.acknowledgePurchase(ackParams)
-                                    if (ackResult?.responseCode == BillingClient.BillingResponseCode.OK) {
+                                    val consumeResult = billingClient?.consumePurchase(consumeParams)
+                                    if (consumeResult?.billingResult?.responseCode == BillingClient.BillingResponseCode.OK) {
                                         onPurchaseSuccess()
                                         return@launch
                                     }
@@ -66,7 +64,7 @@ class DonateHelper(private val context: Context, private val onPurchaseSuccess: 
                 if (result.responseCode == BillingClient.BillingResponseCode.OK) {
                     _state.value = State.Ready
                     scope.launch {
-                        acknowledgePendingPurchases()
+                        consumePendingPurchases()
                         fetchProducts()
                     }
                 } else {
@@ -86,8 +84,8 @@ class DonateHelper(private val context: Context, private val onPurchaseSuccess: 
     }
     
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    // acknowledge any purchases that slipped through (e.g. app closed before listener fired)
-    private suspend fun acknowledgePendingPurchases() {
+    // consume any purchases that slipped through
+    private suspend fun consumePendingPurchases() {
         val client = billingClient ?: return
         val params = QueryPurchasesParams.newBuilder()
             .setProductType(BillingClient.ProductType.INAPP)
@@ -101,12 +99,12 @@ class DonateHelper(private val context: Context, private val onPurchaseSuccess: 
         }
         if (result.first.responseCode == BillingClient.BillingResponseCode.OK) {
             result.second
-                .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED && !it.isAcknowledged }
+                .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
                 .forEach { purchase ->
-                    val ackParams = AcknowledgePurchaseParams.newBuilder()
+                    val consumeParams = ConsumeParams.newBuilder()
                         .setPurchaseToken(purchase.purchaseToken)
                         .build()
-                    client.acknowledgePurchase(ackParams)
+                    client.consumePurchase(consumeParams)
                 }
         }
     }
