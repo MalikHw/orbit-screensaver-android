@@ -35,7 +35,6 @@ import com.malikhw.orbit.update.UpdateChecker
 import kotlinx.coroutines.launch
 
 private val ENABLE_UPDATER: Boolean get() = BuildConfig.ENABLE_UPDATER
-private val ENABLE_DONATE:  Boolean get() = BuildConfig.ENABLE_DONATE
 
 class SettingsActivity : ComponentActivity() {
 
@@ -368,27 +367,8 @@ fun SettingsScreen(activity: SettingsActivity) {
                         }
                     }
 
-                    if (ENABLE_DONATE) {
-                        Spacer(Modifier.height(4.dp))
-                        var showDonateDialog by remember { mutableStateOf(false) }
-                        Button(
-                            onClick = { showDonateDialog = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFF6B35)
-                            )
-                        ) {
-                            Icon(Icons.Default.Favorite, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Donate", fontWeight = FontWeight.Bold)
-                        }
-                        if (showDonateDialog) {
-                            DonationDialog(
-                                activity = activity,
-                                onDismiss = { showDonateDialog = false }
-                            )
-                        }
-                    }
+                    Spacer(Modifier.height(4.dp))
+                    DonateButton(activity = activity)
                 }
             }
 
@@ -516,163 +496,4 @@ fun uriFilename(context: android.content.Context, uriString: String): String {
             if (cursor.moveToFirst() && idx >= 0) cursor.getString(idx) else uriString
         } ?: uriString
     } catch (e: Exception) { uriString }
-}
-
-@Composable
-fun DonationDialog(activity: SettingsActivity, onDismiss: () -> Unit) {
-    // Only compiled when ENABLE_DONATE == true (playstore flavor).
-    // We load DonateHelper via reflection so the main source set never
-    // references the billing library directly.
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-
-    // State: null = loading, empty = error/none, non-empty = ready
-    var products by remember { mutableStateOf<List<Any>?>(null) }
-    var errorMsg by remember { mutableStateOf<String?>(null) }
-    var helper by remember { mutableStateOf<Any?>(null) }
-
-    DisposableEffect(Unit) {
-        val h = try {
-            Class.forName("com.malikhw.orbit.billing.DonateHelper")
-                .getConstructor(android.content.Context::class.java)
-                .newInstance(context)
-        } catch (_: Exception) { null }
-
-        helper = h
-        if (h != null) {
-            scope.launch {
-                try {
-                    val connectMethod = h.javaClass.getMethod(
-                        "connect", kotlinx.coroutines.CoroutineScope::class.java)
-                    connectMethod.invoke(h, scope)
-                    // poll products flow for up to 5 seconds
-                    val productsField = h.javaClass.getDeclaredField("_products").also { it.isAccessible = true }
-                    kotlinx.coroutines.delay(300)
-                    repeat(17) {
-                        val flow = productsField.get(h) as? kotlinx.coroutines.flow.StateFlow<*>
-                        val list = flow?.value as? List<*>
-                        if (!list.isNullOrEmpty()) {
-                            products = list.filterNotNull()
-                            return@launch
-                        }
-                        kotlinx.coroutines.delay(300)
-                    }
-                    if (products == null) errorMsg = "No donation tiers found.\nPlease set up in-app products\nin the Play Console."
-                } catch (e: Exception) {
-                    errorMsg = "Billing unavailable"
-                }
-            }
-        } else {
-            errorMsg = "Billing not available"
-        }
-
-        onDispose {
-            scope.launch {
-                try {
-                    h?.javaClass?.getMethod("disconnect")?.invoke(h)
-                } catch (_: Exception) {}
-            }
-        }
-    }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(8.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // header
-                Icon(
-                    Icons.Default.Favorite,
-                    contentDescription = null,
-                    tint  = Color(0xFFFF6B35),
-                    modifier = Modifier.size(36.dp)
-                )
-                Text(
-                    "Support Orbit",
-                    style      = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "How much?",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
-                )
-
-                Spacer(Modifier.height(4.dp))
-
-                when {
-                    errorMsg != null -> {
-                        Text(
-                            errorMsg!!,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                    products == null -> {
-                        CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
-                        Text("Loading tiers…", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                    }
-                    else -> {
-                        products!!.forEach { product ->
-                            // Extract display name and price via reflection (ProductDetails API)
-                            val name  = runCatching {
-                                product.javaClass.getMethod("getName").invoke(product) as? String
-                            }.getOrNull() ?: "Donation"
-
-                            val price = runCatching {
-                                val offerDetails = product.javaClass
-                                    .getMethod("getOneTimePurchaseOfferDetails")
-                                    .invoke(product)
-                                offerDetails?.javaClass
-                                    ?.getMethod("getFormattedPrice")
-                                    ?.invoke(offerDetails) as? String
-                            }.getOrNull() ?: "—"
-
-                            OutlinedButton(
-                                onClick = {
-                                    try {
-                                        val h = helper ?: return@OutlinedButton
-                                        val launchMethod = h.javaClass.getMethod(
-                                            "launchPurchase",
-                                            android.app.Activity::class.java,
-                                            Class.forName("com.android.billingclient.api.ProductDetails")
-                                        )
-                                        launchMethod.invoke(h, activity, product)
-                                    } catch (_: Exception) {}
-                                    onDismiss()
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape    = RoundedCornerShape(12.dp),
-                                border   = androidx.compose.foundation.BorderStroke(
-                                    1.dp, Color(0xFFFF6B35).copy(alpha = 0.6f)
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(name,  style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                                    Text(price, style = MaterialTheme.typography.bodyMedium,
-                                        color  = Color(0xFFFF6B35), fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(4.dp))
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                    Text("Maybe later", color = Color.Gray, fontSize = 12.sp)
-                }
-            }
-        }
-    }
 }
