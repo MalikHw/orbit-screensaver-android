@@ -35,16 +35,23 @@ class DonateHelper(private val context: Context) {
         _state.value = State.Connecting
         billingClient = BillingClient.newBuilder(context)
             .setListener { result, purchases ->
-                // Handle purchase updates (acknowledgement)
+                // Handle purchase updates — use GlobalScope so this survives dialog close
                 if (result.responseCode == BillingClient.BillingResponseCode.OK) {
                     purchases?.forEach { purchase ->
                         if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED
                             && !purchase.isAcknowledged) {
-                            scope.launch {
+                            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                 val ackParams = AcknowledgePurchaseParams.newBuilder()
                                     .setPurchaseToken(purchase.purchaseToken)
                                     .build()
-                                billingClient?.acknowledgePurchase(ackParams)
+                                // retry up to 3 times in case of failure
+                                repeat(3) { attempt ->
+                                    val ackResult = billingClient?.acknowledgePurchase(ackParams)
+                                    if (ackResult?.responseCode == BillingClient.BillingResponseCode.OK) {
+                                        return@launch
+                                    }
+                                    kotlinx.coroutines.delay(1000L * (attempt + 1))
+                                }
                             }
                         }
                     }
