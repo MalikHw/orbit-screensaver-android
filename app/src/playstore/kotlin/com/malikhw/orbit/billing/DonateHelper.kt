@@ -60,7 +60,7 @@ class DonateHelper(private val context: Context) {
                     }
                 }
             }
-            .enablePendingPurchases()
+            .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
             .build()
 
         billingClient!!.startConnection(object : BillingClientStateListener {
@@ -83,7 +83,8 @@ class DonateHelper(private val context: Context) {
         billingClient = null
         _state.value = State.Disconnected
     }
-
+    
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     // product fetch
     suspend fun fetchProducts() {
         val client = billingClient ?: return
