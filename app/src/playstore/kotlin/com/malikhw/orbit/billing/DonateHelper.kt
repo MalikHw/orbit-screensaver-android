@@ -7,7 +7,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-class DonateHelper(private val context: Context) {
+class DonateHelper(private val context: Context, private val onPurchaseSuccess: () -> Unit = {}) {
 
     companion object {
         // These must match the product IDs created in the Play Console
@@ -48,6 +48,7 @@ class DonateHelper(private val context: Context) {
                                 repeat(3) { attempt ->
                                     val ackResult = billingClient?.acknowledgePurchase(ackParams)
                                     if (ackResult?.responseCode == BillingClient.BillingResponseCode.OK) {
+                                        onPurchaseSuccess()
                                         return@launch
                                     }
                                     kotlinx.coroutines.delay(1000L * (attempt + 1))
