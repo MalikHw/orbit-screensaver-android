@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -22,7 +23,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -103,6 +108,12 @@ fun SettingsScreen(activity: SettingsActivity) {
     val context = LocalContext.current
     val prefs   = remember { OrbitPrefs(context) }
 
+    val isChromebook = remember { context.packageManager.hasSystemFeature("org.chromium.arc") }
+    val isTv         = remember {
+        context.packageManager.hasSystemFeature("android.software.leanback") ||
+        context.packageManager.hasSystemFeature("android.hardware.type.television")
+    }
+
     var speed      by remember { mutableIntStateOf(prefs.speed) }
     var fps        by remember { mutableIntStateOf(prefs.fps) }
     var bgMode     by remember { mutableIntStateOf(prefs.bgMode) }
@@ -171,13 +182,67 @@ fun SettingsScreen(activity: SettingsActivity) {
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
+        val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .verticalScroll(scrollState)
+                .padding(16.dp)
+                .focusable(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+
+            // chromebook warning
+            if (isChromebook) {
+                var dismissed by remember { mutableStateOf(false) }
+                if (!dismissed) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF7B2D00)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFFFB74D))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Chromebook detected", fontWeight = FontWeight.Bold,
+                                    color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                                Text("This is not supported on Chrome OS. The screensaver won't activate. (not my fault forgive me 💀)",
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
+                            IconButton(onClick = { dismissed = true }) {
+                                Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = Color.White)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // TV hint
+            if (isTv) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1A237E)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.Tv, contentDescription = null, tint = Color(0xFF82B1FF))
+                        Column {
+                            Text("TV / D-pad mode", fontWeight = FontWeight.Bold,
+                                color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                            Text("Use D-pad or gamepad to navigate. Press Center/A to interact.",
+                                color = Color.White.copy(alpha = 0.85f),
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
 
             SectionCard("Physics") {
                 LabeledSlider("Speed: $speed", speed.toFloat(), 1f, 20f) { speed = it.toInt() }
@@ -452,7 +517,30 @@ fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
 @Composable
 fun LabeledSlider(label: String, value: Float, min: Float, max: Float, onChanged: (Float) -> Unit) {
     Text(label, style = MaterialTheme.typography.bodyMedium)
-    Slider(value = value, onValueChange = onChanged, valueRange = min..max, modifier = Modifier.fillMaxWidth())
+    val step = (max - min) / 20f  // 5% per D-pad press
+    var isFocused by remember { mutableStateOf(false) }
+    Slider(
+        value        = value,
+        onValueChange = onChanged,
+        valueRange   = min..max,
+        modifier     = Modifier
+            .fillMaxWidth()
+            .onFocusChanged { isFocused = it.isFocused }
+            .border(
+                width = if (isFocused) 2.dp else 0.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = RoundedCornerShape(4.dp)
+            )
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown) {
+                    when (event.key) {
+                        Key.DirectionLeft  -> { onChanged((value - step).coerceIn(min, max)); true }
+                        Key.DirectionRight -> { onChanged((value + step).coerceIn(min, max)); true }
+                        else -> false
+                    }
+                } else false
+            }
+    )
 }
 
 @Composable
