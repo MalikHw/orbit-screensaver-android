@@ -23,6 +23,22 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Cache NDK
+        id: cache-ndk
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/lib/android/sdk/ndk/26.3.11579264
+          key: ndk-26.3.11579264
+
       - name: Set version tag
         id: version
         run: echo "tag=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
@@ -48,6 +64,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install NDK
+        if: steps.cache-ndk.outputs.cache-hit != 'true'
         run: |
           for i in 1 2 3; do
             echo "y" | sdkmanager "ndk;26.3.11579264" "cmake;3.22.1" && break
@@ -55,9 +72,6 @@ jobs:
             sleep 10
           done
 
-      # ── Launcher icons ──────────────────────────────────────────────────────
-      # Copy to ALL standard mipmap density buckets so the icon shows correctly
-      # on Android 10–11 (API 29–30) which don't use adaptive icons from anydpi.
       - name: Move launcher icons to all mipmap density buckets
         run: |
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
@@ -109,17 +123,11 @@ jobs:
           echo "ADMOB_BANNER_BOTTOM=${{ secrets.ADMOB_BANNER_BOTTOM }}" >> local.properties
           echo "ADMOB_INTERSTITIAL=${{ secrets.ADMOB_INTERSTITIAL }}" >> local.properties
 
-      - name: Build release APKs
-        run: ./gradlew assembleFullRelease assemblePlaystoreRelease --stacktrace
+      - name: Build release APKs + AABs
+        run: ./gradlew assembleFullRelease assemblePlaystoreRelease bundleFullRelease bundlePlaystoreRelease --stacktrace --build-cache
         env:
           NDK_VERSION: "26.3.11579264"
 
-      - name: Build release AABs
-        run: ./gradlew bundleFullRelease bundlePlaystoreRelease --stacktrace
-        env:
-          NDK_VERSION: "26.3.11579264"
-
-      # ── Signing ────────────────────────────────────────────────────────────
       - name: Sign all outputs
         id: sign
         run: |
