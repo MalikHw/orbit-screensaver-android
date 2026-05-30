@@ -3,10 +3,14 @@ package com.malikhw.orbit.settings
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import android.provider.OpenableColumns
+import android.view.InputDevice
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,12 +30,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -78,7 +88,9 @@ class SettingsActivity : ComponentActivity() {
         actionBar?.hide()
         setContent {
             OrbitTheme {
-                SettingsScreen(activity = this)
+                VirtualCursorWrapper(activity = this) {
+                    SettingsScreen(activity = this)
+                }
             }
         }
     }
@@ -598,4 +610,103 @@ fun Modifier.tvFocusBorder(shape: androidx.compose.ui.graphics.Shape = RoundedCo
             shape = shape
         )
         .focusable()
+}
+
+// Vcursor overlay (TV/keyboard(fuck android x86 users)/gamepad)
+@Composable
+fun VirtualCursorWrapper(activity: SettingsActivity, content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val isTvOrNoTouch = remember {
+        context.packageManager.hasSystemFeature("android.software.leanback") ||
+        context.packageManager.hasSystemFeature("android.hardware.type.television") ||
+        !context.packageManager.hasSystemFeature("android.hardware.touchscreen")
+    }
+
+    if (!isTvOrNoTouch) {
+        // Phone/tablet: just render content normally
+        content()
+        return
+    }
+
+    val view = LocalView.current
+    var screenSize by remember { mutableStateOf(IntSize(1920, 1080)) }
+
+    // Cursor position — start in center
+    var cursorX by remember { mutableFloatStateOf(screenSize.width / 2f) }
+    var cursorY by remember { mutableFloatStateOf(screenSize.height / 2f) }
+    var visible by remember { mutableStateOf(false) }
+
+    val step = 40f  // pixels per D-pad press
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { size ->
+                screenSize = size
+                if (!visible) {
+                    cursorX = size.width / 2f
+                    cursorY = size.height / 2f
+                }
+            }
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                when (event.key) {
+                    Key.DirectionUp -> { cursorY = (cursorY - step).coerceAtLeast(0f); visible = true; true }
+                    Key.DirectionDown -> { cursorY = (cursorY + step).coerceAtMost(screenSize.height.toFloat()); visible = true; true }
+                    Key.DirectionLeft -> { cursorX = (cursorX - step).coerceAtLeast(0f); visible = true; true }
+                    Key.DirectionRight -> { cursorX = (cursorX + step).coerceAtMost(screenSize.width.toFloat());  visible = true; true }
+                    Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
+                        if (visible) {
+                            // inject a tap at cursor position
+                            val now = SystemClock.uptimeMillis()
+                            val down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, cursorX, cursorY, 0)
+                            val up   = MotionEvent.obtain(now, now + 50, MotionEvent.ACTION_UP, cursorX, cursorY, 0)
+                            down.source = InputDevice.SOURCE_TOUCHSCREEN
+                            up.source   = InputDevice.SOURCE_TOUCHSCREEN
+                            view.dispatchTouchEvent(down)
+                            view.dispatchTouchEvent(up)
+                            down.recycle()
+                            up.recycle()
+                            true
+                        } else false
+                    }
+                    else -> false
+                }
+            }
+            .focusable()
+    ) {
+        content()
+
+        // draw crosshair cursor
+        if (visible) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val x = cursorX
+                val y = cursorY
+                val armLen  = 18f
+                val gapSize = 5f
+                val strokeW = 3f
+                val shadow  = Color.Black.copy(alpha = 0.6f)
+                val white   = Color.White
+
+                // Shadow pass
+                for (offset in listOf(Offset(1f, 1f))) {
+                    // horizontal arms
+                    drawLine(shadow, Offset(x - armLen + offset.x, y + offset.y), Offset(x - gapSize + offset.x, y + offset.y), strokeW + 1f, StrokeCap.Round)
+                    drawLine(shadow, Offset(x + gapSize + offset.x, y + offset.y), Offset(x + armLen + offset.x, y + offset.y), strokeW + 1f, StrokeCap.Round)
+                    // vertical arms
+                    drawLine(shadow, Offset(x + offset.x, y - armLen + offset.y), Offset(x + offset.x, y - gapSize + offset.y), strokeW + 1f, StrokeCap.Round)
+                    drawLine(shadow, Offset(x + offset.x, y + gapSize + offset.y), Offset(x + offset.x, y + armLen + offset.y), strokeW + 1f, StrokeCap.Round)
+                    // center dot
+                    drawCircle(shadow, 2.5f + 1f, Offset(x + offset.x, y + offset.y))
+                }
+
+                // White pass
+                drawLine(white, Offset(x - armLen, y), Offset(x - gapSize, y), strokeW, StrokeCap.Round)
+                drawLine(white, Offset(x + gapSize, y), Offset(x + armLen, y), strokeW, StrokeCap.Round)
+                drawLine(white, Offset(x, y - armLen), Offset(x, y - gapSize), strokeW, StrokeCap.Round)
+                drawLine(white, Offset(x, y + gapSize), Offset(x, y + armLen), strokeW, StrokeCap.Round)
+                drawCircle(white, 2.5f, Offset(x, y))
+            }
+        }
+    }
 }
