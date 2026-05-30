@@ -25,17 +25,18 @@ android {
         }
     }
 
-    // ── Product flavors ───────────────────────────────────────────────────────
     flavorDimensions "distribution"
 
     productFlavors {
         full {
             dimension "distribution"
             buildConfigField "boolean", "ENABLE_UPDATER", "true"
+            buildConfigField "boolean", "ENABLE_DONATE",  "false"
         }
         playstore {
             dimension "distribution"
             buildConfigField "boolean", "ENABLE_UPDATER", "false"
+            buildConfigField "boolean", "ENABLE_DONATE", "true"
             applicationIdSuffix ".mc"
         }
     }
@@ -106,6 +107,9 @@ dependencies {
 
     // Coil for image loading in settings preview
     implementation 'io.coil-kt:coil-compose:2.5.0'
+
+    // Google play billing (donate button, Play Store variant only)
+    playstoreImplementation 'com.android.billingclient:billing-ktx:7.0.0'
 
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
