@@ -25,7 +25,7 @@ fun DonateButton(activity: Activity) {
 
     Button(
         onClick = { showDialog = true },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().tvFocusBorder(RoundedCornerShape(50)),
         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B35))
     ) {
         Icon(Icons.Default.Favorite, contentDescription = null)

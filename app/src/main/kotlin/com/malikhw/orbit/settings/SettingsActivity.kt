@@ -253,7 +253,7 @@ fun SettingsScreen(activity: SettingsActivity) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Infinite fall", style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = noGround, onCheckedChange = { noGround = it })
+                    Switch(checked = noGround, onCheckedChange = { noGround = it }, modifier = Modifier.tvFocusBorder(RoundedCornerShape(50)))
                 }
             }
 
@@ -292,9 +292,9 @@ fun SettingsScreen(activity: SettingsActivity) {
                             Text("Using bundled default", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlinedButton(onClick = { pickCubeImage() }) { Text("Browse") }
+                        OutlinedButton(onClick = { pickCubeImage() }, modifier = Modifier.tvFocusBorder()) { Text("Browse") }
                         if (cubeUri != null) {
-                            OutlinedButton(onClick = { cubeUri = null; prefs.cubeImageUri = null }) { Text("Reset") }
+                            OutlinedButton(onClick = { cubeUri = null; prefs.cubeImageUri = null }, modifier = Modifier.tvFocusBorder()) { Text("Reset") }
                         }
                     }
                 }
@@ -310,7 +310,7 @@ fun SettingsScreen(activity: SettingsActivity) {
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
                                 .clickable { bgMode = value }.padding(vertical = 6.dp, horizontal = 4.dp)
                         ) {
-                            RadioButton(selected = bgMode == value, onClick = { bgMode = value })
+                            RadioButton(selected = bgMode == value, onClick = { bgMode = value }, modifier = Modifier.tvFocusBorder(CircleShape))
                             Spacer(Modifier.width(8.dp))
                             Text(label, style = MaterialTheme.typography.bodyMedium)
                         }
@@ -334,7 +334,7 @@ fun SettingsScreen(activity: SettingsActivity) {
                             else
                                 Text("None selected", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                         }
-                        OutlinedButton(onClick = { pickBgImage() }) { Text("Browse") }
+                        OutlinedButton(onClick = { pickBgImage() }, modifier = Modifier.tvFocusBorder()) { Text("Browse") }
                     }
                 }
             }
@@ -425,7 +425,7 @@ fun SettingsScreen(activity: SettingsActivity) {
                             row.forEach { (label, url) ->
                                 OutlinedButton(
                                     onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.weight(1f).tvFocusBorder(),
                                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
                                 ) { Text(label, fontSize = 12.sp) }
                             }
@@ -438,7 +438,7 @@ fun SettingsScreen(activity: SettingsActivity) {
             }
 
             // bottom save
-            Button(onClick = { save() }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
+            Button(onClick = { save() }, modifier = Modifier.fillMaxWidth().height(50.dp).tvFocusBorder(RoundedCornerShape(50))) {
                 Icon(Icons.Default.Save, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("Save Settings", fontSize = 16.sp)
@@ -455,7 +455,7 @@ fun SettingsScreen(activity: SettingsActivity) {
                         dreamSettingsError = false
                     } catch (e: Exception) { dreamSettingsError = true }
                 },
-                modifier = Modifier.fillMaxWidth().height(50.dp)
+                modifier = Modifier.fillMaxWidth().height(50.dp).tvFocusBorder(RoundedCornerShape(50))
             ) {
                 Icon(Icons.Default.PhoneAndroid, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -584,4 +584,18 @@ fun uriFilename(context: android.content.Context, uriString: String): String {
             if (cursor.moveToFirst() && idx >= 0) cursor.getString(idx) else uriString
         } ?: uriString
     } catch (e: Exception) { uriString }
+}
+// TV / D-pad focus border, wrap any interactive element with this
+@Composable
+fun Modifier.tvFocusBorder(shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(8.dp)): Modifier {
+    var focused by remember { mutableStateOf(false) }
+    val borderColor = MaterialTheme.colorScheme.primary
+    return this
+        .onFocusChanged { focused = it.isFocused }
+        .border(
+            width = if (focused) 3.dp else 0.dp,
+            color = if (focused) borderColor else Color.Transparent,
+            shape = shape
+        )
+        .focusable()
 }

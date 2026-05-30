@@ -7,16 +7,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-/**
- * Wraps Google Play Billing for the donation flow.
- *
- * Product IDs must be set up in the Play Console as one-time in-app products.
- * Suggested IDs: "donation_small", "donation_medium", "donation_large"
- *
- * Call [connect] once (e.g. in onCreate), [disconnect] when done (e.g. onDestroy).
- * Then call [fetchProducts] to populate [products], and [launchPurchase] to buy one.
- * fml
- */
 class DonateHelper(private val context: Context) {
 
     companion object {
@@ -67,7 +57,10 @@ class DonateHelper(private val context: Context) {
             override fun onBillingSetupFinished(result: BillingResult) {
                 if (result.responseCode == BillingClient.BillingResponseCode.OK) {
                     _state.value = State.Ready
-                    scope.launch { fetchProducts() }
+                    scope.launch {
+                        acknowledgePendingPurchases()
+                        fetchProducts()
+                    }
                 } else {
                     _state.value = State.Error("Billing unavailable (${result.responseCode})")
                 }
@@ -84,6 +77,32 @@ class DonateHelper(private val context: Context) {
         _state.value = State.Disconnected
     }
     
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    // acknowledge any purchases that slipped through (e.g. app closed before listener fired)
+    private suspend fun acknowledgePendingPurchases() {
+        val client = billingClient ?: return
+        val params = QueryPurchasesParams.newBuilder()
+            .setProductType(BillingClient.ProductType.INAPP)
+            .build()
+        val result = withContext(Dispatchers.IO) {
+            suspendCancellableCoroutine<Pair<BillingResult, List<Purchase>>> { cont ->
+                client.queryPurchasesAsync(params) { billingResult, purchases ->
+                    cont.resume(Pair(billingResult, purchases)) {}
+                }
+            }
+        }
+        if (result.first.responseCode == BillingClient.BillingResponseCode.OK) {
+            result.second
+                .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED && !it.isAcknowledged }
+                .forEach { purchase ->
+                    val ackParams = AcknowledgePurchaseParams.newBuilder()
+                        .setPurchaseToken(purchase.purchaseToken)
+                        .build()
+                    client.acknowledgePurchase(ackParams)
+                }
+        }
+    }
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     // product fetch
     suspend fun fetchProducts() {
