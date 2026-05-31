@@ -474,7 +474,7 @@ fun SettingsScreen(activity: SettingsActivity) {
                 Text("Open Android Screensaver Settings", fontSize = 14.sp)
             }
             if (dreamSettingsError) {
-                Text("⚠ Couldn't open screensaver settings on this device",
+                Text("Couldn't open screensaver settings on this device, Maybe your device manufacturer deleted the screensaver feature from your phone 🥀",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(horizontal = 4.dp))
