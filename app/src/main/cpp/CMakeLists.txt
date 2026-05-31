@@ -6,17 +6,20 @@ include(FetchContent)
 FetchContent_Declare(
     box2d
     GIT_REPOSITORY https://github.com/erincatto/box2d.git
-    GIT_TAG        v2.4.1
+    GIT_TAG        v2.4.2
     GIT_SHALLOW    TRUE
 )
 set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 set(BOX2D_BUILD_TESTBED    OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(box2d)
 
-target_link_options(box2d PRIVATE
+target_link_options(box2d INTERFACE
     "-Wl,-z,max-page-size=16384"
     "-Wl,-z,common-page-size=16384"
 ) # FUCK
+target_compile_options(box2d INTERFACE
+    "-mno-unaligned-access"
+)
 
 # stb
 # Just needs to be in the include path; we define STB_IMAGE_IMPLEMENTATION in one .cpp file.
