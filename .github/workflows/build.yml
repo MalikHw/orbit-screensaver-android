@@ -32,12 +32,6 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      - name: Cache NDK
-        id: cache-ndk
-        uses: actions/cache@v4
-        with:
-          path: /usr/local/lib/android/sdk/ndk/28.0.12433566
-          key: ndk-28.0.12433566-v2
 
       - name: Set version tag
         id: version
@@ -64,7 +58,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install NDK
-        if: steps.cache-ndk.outputs.cache-hit != 'true' 
+      
         run: |
           for i in 1 2 3; do
             echo "y" | sdkmanager "ndk;28.0.12433566" "cmake;3.22.1" && break
