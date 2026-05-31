@@ -13,6 +13,11 @@ set(BOX2D_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 set(BOX2D_BUILD_TESTBED    OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(box2d)
 
+target_link_options(box2d PRIVATE
+    "-Wl,-z,max-page-size=16384"
+    "-Wl,-z,common-page-size=16384"
+) # FUCK
+
 # stb
 # Just needs to be in the include path; we define STB_IMAGE_IMPLEMENTATION in one .cpp file.
 
