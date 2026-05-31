@@ -1,12 +1,15 @@
 package com.malikhw.orbit.settings
 
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.provider.OpenableColumns
 import android.view.InputDevice
 import android.view.MotionEvent
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,6 +34,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -44,10 +49,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import com.malikhw.orbit.BuildConfig
+import com.malikhw.orbit.dream.OrbitRenderer
 import com.malikhw.orbit.update.UpdateChecker
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val ENABLE_UPDATER: Boolean get() = BuildConfig.ENABLE_UPDATER
 
@@ -258,6 +267,14 @@ fun SettingsScreen(activity: SettingsActivity) {
 
             SectionCard("Physics") {
                 LabeledSlider("Speed: $speed", speed.toFloat(), 1f, 20f) { speed = it.toInt() }
+                Spacer(Modifier.height(8.dp))
+                LabeledSlider("FPS: $fps", fps.toFloat(), 15f, 165f) { fps = it.toInt() }
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("30" to 30, "60" to 60, "90" to 90, "120" to 120, "165" to 165).forEach { (label, v) ->
+                        FilterChip(selected = fps == v, onClick = { fps = v }, label = { Text(label) })
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -478,6 +495,35 @@ fun SettingsScreen(activity: SettingsActivity) {
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(horizontal = 4.dp))
+            }
+
+            // live prev
+            SectionCard("Preview") {
+                Text(
+                    "Live screensaver preview — reacts to your settings",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+                Spacer(Modifier.height(12.dp))
+                OrbitPreview(
+                    speed = speed,
+                    fps = fps,
+                    bgMode = bgMode,
+                    bgColorR = bgColor.red,
+                    bgColorG = bgColor.green,
+                    bgColorB = bgColor.blue,
+                    noGround = noGround,
+                    orbScale = orbScale,
+                    orbCount = orbCount,
+                    cubeChance = cubeChance,
+                    bgImageUri = bgImageUri,
+                    cubeUri = cubeUri,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                )
             }
 
             // dihclaimer
@@ -707,6 +753,148 @@ fun VirtualCursorWrapper(activity: SettingsActivity, content: @Composable () -> 
                 drawLine(white, Offset(x, y + gapSize), Offset(x, y + armLen), strokeW, StrokeCap.Round)
                 drawCircle(white, 2.5f, Offset(x, y))
             }
+        }
+    }
+}
+
+// SurfaceView-backed screensaver prev
+@Composable
+fun OrbitPreview(
+    speed: Int, fps: Int, bgMode: Int,
+    bgColorR: Float, bgColorG: Float, bgColorB: Float,
+    noGround: Boolean, orbScale: Float, orbCount: Int, cubeChance: Int,
+    bgImageUri: String?, cubeUri: String?,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val scope   = rememberCoroutineScope()
+
+    // Track the live SurfaceHolder so we can restart when settings change
+    var holder by remember { mutableStateOf<SurfaceHolder?>(null) }
+
+    // Push settings + restart render whenever any param changes
+    LaunchedEffect(
+        speed, fps, bgMode, bgColorR, bgColorG, bgColorB,
+        noGround, orbScale, orbCount, cubeChance, bgImageUri, cubeUri
+    ) {
+        val h = holder ?: return@LaunchedEffect
+        OrbitRenderer.nativeStop()
+        OrbitRenderer.nativeSetSettings(
+            speed = speed,
+            fps = fps,
+            bgMode = bgMode,
+            bgR = bgColorR,
+            bgG = bgColorG,
+            bgB = bgColorB,
+            noGround = noGround,
+            orbScale = orbScale,
+            orbCount = orbCount,
+            cubeChance = cubeChance
+        )
+        withContext(Dispatchers.IO) {
+            // background bitmap
+            if (bgMode == OrbitPrefs.BG_IMAGE && bgImageUri != null) {
+                try {
+                    val uri = android.net.Uri.parse(bgImageUri)
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        val bmp = android.graphics.BitmapFactory.decodeStream(stream)
+                        bmp?.let {
+                            val argb = if (it.config == android.graphics.Bitmap.Config.ARGB_8888) it
+                                       else it.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                            OrbitRenderer.nativeSetBgBitmap(argb)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            // cube bitmap
+            if (cubeUri != null) {
+                try {
+                    val uri = android.net.Uri.parse(cubeUri)
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        val bmp = android.graphics.BitmapFactory.decodeStream(stream)
+                        bmp?.let {
+                            val size = minOf(it.width, it.height)
+                            val cropped = android.graphics.Bitmap.createScaledBitmap(it, size, size, true)
+                            val argb = if (cropped.config == android.graphics.Bitmap.Config.ARGB_8888) cropped
+                                       else cropped.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                            OrbitRenderer.nativeSetCubeBitmap(argb)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+        OrbitRenderer.nativeStart(h.surface)
+    }
+
+    AndroidView(
+        modifier = modifier,
+        factory = { ctx ->
+            SurfaceView(ctx).also { sv ->
+                OrbitRenderer.nativeSetAssetManager(ctx.assets)
+                sv.holder.addCallback(object : SurfaceHolder.Callback {
+                    override fun surfaceCreated(h: SurfaceHolder) {
+                        holder = h
+                        scope.launch {
+                            OrbitRenderer.nativeSetSettings(
+                                speed  = speed,
+                                fps = fps,
+                                bgMode = bgMode,
+                                bgR = bgColorR,
+                                bgG = bgColorG,
+                                bgB = bgColorB,
+                                noGround = noGround,
+                                orbScale = orbScale,
+                                orbCount = orbCount,
+                                cubeChance = cubeChance
+                            )
+                            withContext(Dispatchers.IO) {
+                                if (bgMode == OrbitPrefs.BG_IMAGE && bgImageUri != null) {
+                                    try {
+                                        val uri = android.net.Uri.parse(bgImageUri)
+                                        ctx.contentResolver.openInputStream(uri)?.use { stream ->
+                                            val bmp = android.graphics.BitmapFactory.decodeStream(stream)
+                                            bmp?.let {
+                                                val argb = if (it.config == android.graphics.Bitmap.Config.ARGB_8888) it
+                                                           else it.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                                                OrbitRenderer.nativeSetBgBitmap(argb)
+                                            }
+                                        }
+                                    } catch (_: Exception) {}
+                                }
+                                if (cubeUri != null) {
+                                    try {
+                                        val uri = android.net.Uri.parse(cubeUri)
+                                        ctx.contentResolver.openInputStream(uri)?.use { stream ->
+                                            val bmp = android.graphics.BitmapFactory.decodeStream(stream)
+                                            bmp?.let {
+                                                val size = minOf(it.width, it.height)
+                                                val cropped = android.graphics.Bitmap.createScaledBitmap(it, size, size, true)
+                                                val argb = if (cropped.config == android.graphics.Bitmap.Config.ARGB_8888) cropped
+                                                           else cropped.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                                                OrbitRenderer.nativeSetCubeBitmap(argb)
+                                            }
+                                        }
+                                    } catch (_: Exception) {}
+                                }
+                            }
+                            OrbitRenderer.nativeStart(h.surface)
+                        }
+                    }
+                    override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, he: Int) {}
+                    override fun surfaceDestroyed(h: SurfaceHolder) {
+                        holder = null
+                        OrbitRenderer.nativeSurfaceDestroyed()
+                    }
+                })
+            }
+        }
+    )
+
+    // Stop the render loop when this composable leaves the composition
+    DisposableEffect(Unit) {
+        onDispose {
+            OrbitRenderer.nativeStop()
+            holder = null
         }
     }
 }
