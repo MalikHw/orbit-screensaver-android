@@ -36,8 +36,8 @@ jobs:
         id: cache-ndk
         uses: actions/cache@v4
         with:
-          path: /usr/local/lib/android/sdk/ndk/26.3.11579264
-          key: ndk-26.3.11579264
+          path: /usr/local/lib/android/sdk/ndk/28.0.12433566
+          key: ndk-28.0.12433566
 
       - name: Set version tag
         id: version
@@ -126,7 +126,7 @@ jobs:
       - name: Build release APKs + AABs
         run: ./gradlew assembleFullRelease assemblePlaystoreRelease bundleFullRelease bundlePlaystoreRelease --stacktrace --build-cache
         env:
-          NDK_VERSION: "26.3.11579264"
+          NDK_VERSION: "28.0.12433566"
 
       - name: Sign all outputs
         id: sign
