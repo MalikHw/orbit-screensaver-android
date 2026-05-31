@@ -10,7 +10,7 @@ class DonateHelper(private val context: Context, private val onPurchaseSuccess: 
 
     companion object {
         // These must match the product IDs created in the Play Console
-        val PRODUCT_IDS = listOf("donation_small", "donation_medium", "donation_large")
+        val PRODUCT_IDS = listOf("donation_1", "donation_2", "donation_5", "donation_10", "donation_20")
     }
 
     sealed class State {
