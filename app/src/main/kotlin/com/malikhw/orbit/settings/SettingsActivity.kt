@@ -484,7 +484,18 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         })
                         dreamSettingsError = false
-                    } catch (e: Exception) { dreamSettingsError = true }
+                    } catch (e: Exception) {
+                        try {
+                            context.startActivity(Intent().apply {
+                                setClassName("com.android.tv.settings", "com.android.tv.settings.device.display.daydream.DaydreamActivity")
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            })
+                            dreamSettingsError = false
+                        } catch (e2: Exception) {
+                            dreamSettingsError = true
+                            android.widget.Toast.makeText(context, "Couldn't open screensaver settings...\nNot supported on this device :(", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp).tvFocusBorder(RoundedCornerShape(50))
             ) {
