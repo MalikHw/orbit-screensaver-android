@@ -219,7 +219,7 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
     val view = LocalView.current
 
     val window = remember(activity) { activity.window }
-    val originalDecorFits = remember(activity) { WindowCompat.getDecorFitsSystemWindows(window) }
+    val originalDecorFits = remember(activity) { true }
 
     fun applyFullscreenUi() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
