@@ -362,7 +362,7 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
             }
 
             SectionCard("Physics") {
-                LabeledSlider("Speed: $speed", speed.toFloat(), 1f, 20f) { speed = it.toInt() }
+                LabeledSlider("Speed: $speed", speed.toFloat(), 1f, 40f) { speed = it.toInt() }
                 Spacer(Modifier.height(8.dp))
                 LabeledSlider("FPS: $fps", fps.toFloat(), 15f, 165f) { fps = it.toInt() }
                 Spacer(Modifier.height(4.dp))
