@@ -19,6 +19,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -97,8 +98,9 @@ class SettingsActivity : ComponentActivity() {
         actionBar?.hide()
         setContent {
             OrbitTheme {
-                VirtualCursorWrapper(activity = this) {
-                    SettingsScreen(activity = this)
+                val scrollState = rememberScrollState()
+                VirtualCursorWrapper(activity = this, scrollState = scrollState) {
+                    SettingsScreen(activity = this, scrollState = scrollState)
                 }
             }
         }
@@ -125,7 +127,7 @@ fun OrbitTheme(content: @Composable () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(activity: SettingsActivity) {
+fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememberScrollState()) {
     val context = LocalContext.current
     val prefs   = remember { OrbitPrefs(context) }
 
@@ -203,7 +205,6 @@ fun SettingsScreen(activity: SettingsActivity) {
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
                 .padding(padding)
@@ -660,7 +661,7 @@ fun Modifier.tvFocusBorder(shape: androidx.compose.ui.graphics.Shape = RoundedCo
 
 // Vcursor overlay (TV/keyboard(fuck android x86 users)/gamepad)
 @Composable
-fun VirtualCursorWrapper(activity: SettingsActivity, content: @Composable () -> Unit) {
+fun VirtualCursorWrapper(activity: SettingsActivity, scrollState: ScrollState, content: @Composable () -> Unit) {
     val context = LocalContext.current
     val isTvOrNoTouch = remember {
         context.packageManager.hasSystemFeature("android.software.leanback") ||
@@ -683,6 +684,7 @@ fun VirtualCursorWrapper(activity: SettingsActivity, content: @Composable () -> 
     var visible by remember { mutableStateOf(false) }
 
     val step = 40f  // pixels per D-pad press
+    val coroutineScope = rememberCoroutineScope()
 
     Box(
         modifier = Modifier
@@ -697,8 +699,24 @@ fun VirtualCursorWrapper(activity: SettingsActivity, content: @Composable () -> 
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
-                    Key.DirectionUp -> { cursorY = (cursorY - step).coerceAtLeast(0f); visible = true; true }
-                    Key.DirectionDown -> { cursorY = (cursorY + step).coerceAtMost(screenSize.height.toFloat()); visible = true; true }
+                    Key.DirectionUp -> {
+                        cursorY = (cursorY - step).coerceAtLeast(0f)
+                        visible = true
+                        // scroll the fuck up when cursor is in the top 20% of screen
+                        if (cursorY < screenSize.height * 0.2f) {
+                            coroutineScope.launch { scrollState.scrollBy(-step * 3) }
+                        }
+                        true
+                    }
+                    Key.DirectionDown -> {
+                        cursorY = (cursorY + step).coerceAtMost(screenSize.height.toFloat())
+                        visible = true
+                        // scroll the fuck down when cursor is in the bottom 20% of screen
+                        if (cursorY > screenSize.height * 0.8f) {
+                            coroutineScope.launch { scrollState.scrollBy(step * 3) }
+                        }
+                        true
+                    }
                     Key.DirectionLeft -> { cursorX = (cursorX - step).coerceAtLeast(0f); visible = true; true }
                     Key.DirectionRight -> { cursorX = (cursorX + step).coerceAtMost(screenSize.width.toFloat());  visible = true; true }
                     Key.Enter, Key.NumPadEnter, Key.DirectionCenter -> {
