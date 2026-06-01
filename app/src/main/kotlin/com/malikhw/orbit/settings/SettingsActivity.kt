@@ -507,25 +507,52 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
                     color = Color.Gray
                 )
                 Spacer(Modifier.height(12.dp))
-                OrbitPreview(
-                    speed = speed,
-                    fps = fps,
-                    bgMode = bgMode,
-                    bgColorR = bgColor.red,
-                    bgColorG = bgColor.green,
-                    bgColorB = bgColor.blue,
-                    noGround = noGround,
-                    orbScale = orbScale,
-                    orbCount = orbCount,
-                    cubeChance = cubeChance,
-                    bgImageUri = bgImageUri,
-                    cubeUri = cubeUri,
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
-                )
+                ) {
+                    OrbitPreview(
+                        speed = speed,
+                        fps = fps,
+                        bgMode = bgMode,
+                        bgColorR = bgColor.red,
+                        bgColorG = bgColor.green,
+                        bgColorB = bgColor.blue,
+                        noGround = noGround,
+                        orbScale = orbScale,
+                        orbCount = orbCount,
+                        cubeChance = cubeChance,
+                        bgImageUri = bgImageUri,
+                        cubeUri = cubeUri,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp)) // i love it
+                    )
+                    IconButton(
+                        onClick = {
+                            context.startService(
+                                android.content.Intent(context, com.malikhw.orbit.dream.OrbitDreamService::class.java)
+                            )
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(36.dp)
+                            .background(
+                                color = Color.Black.copy(alpha = 0.45f),
+                                shape = CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Fullscreen,
+                            contentDescription = "Preview fullscreen",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
 
             // dihclaimer
