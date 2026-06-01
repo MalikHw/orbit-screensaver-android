@@ -37,6 +37,8 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".settings.FullscreenPreviewActivity" android:exported="false" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+
         <service
             android:name=".dream.OrbitDreamService"
             android:exported="true"

@@ -528,12 +528,12 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(RoundedCornerShape(16.dp))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp)) // i love it
+                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
                     )
                     IconButton(
                         onClick = {
-                            context.startService(
-                                android.content.Intent(context, com.malikhw.orbit.dream.OrbitDreamService::class.java)
+                            context.startActivity(
+                                android.content.Intent(context, FullscreenPreviewActivity::class.java) // i love it
                             )
                         },
                         modifier = Modifier
