@@ -38,54 +38,69 @@ class FullscreenPreviewActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         scope.launch {
-            val p = OrbitPrefs(this@FullscreenPreviewActivity)
+            // set asset manager
             OrbitRenderer.nativeSetAssetManager(assets)
-            OrbitRenderer.nativeSetSettings(
-                speed      = p.speed,
-                fps        = p.fps,
-                bgMode     = p.bgMode,
-                bgR        = p.bgColorR,
-                bgG        = p.bgColorG,
-                bgB        = p.bgColorB,
-                noGround   = p.noGround,
-                orbScale   = p.orbScale,
-                orbCount   = p.orbCount,
-                cubeChance = p.cubeChance
-            )
-            withContext(Dispatchers.IO) {
-                // bg image
-                if (p.bgMode == OrbitPrefs.BG_IMAGE && p.bgImageUri != null) {
-                    loadBitmap(p.bgImageUri!!)?.let { bmp ->
-                        OrbitRenderer.nativeSetBgBitmap(ensureArgb8888(bmp))
-                    }
-                }
-                // cube image
-                p.cubeImageUri?.let { uri ->
-                    loadBitmap(uri)?.let { bmp ->
-                        val size = minOf(bmp.width, bmp.height)
-                        val cropped = Bitmap.createScaledBitmap(bmp, size, size, true)
-                        OrbitRenderer.nativeSetCubeBitmap(ensureArgb8888(cropped))
-                    }
-                }
-            }
+            pushSettingsToNative()
+            prepareBgAndCube()
+            // start rendering
             OrbitRenderer.nativeStart(holder.surface)
         }
     }
+    
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
 
-    override fun surfaceDestroyed(holder: SurfaceHolder) { OrbitRenderer.nativeSurfaceDestroyed() }
+    override fun surfaceDestroyed(holder: SurfaceHolder) { 
+        OrbitRenderer.nativeSurfaceDestroyed() 
+    }
+    
     override fun onDestroy() {
         super.onDestroy()
         OrbitRenderer.nativeStop()
         scope.cancel()
     }
-    private fun loadBitmap(uriString: String): Bitmap? = try {
-        val uri = Uri.parse(uriString)
-        contentResolver.openInputStream(uri)?.use {
-            android.graphics.BitmapFactory.decodeStream(it)
+    
+    private fun pushSettingsToNative() {
+        val p = OrbitPrefs(this)
+        OrbitRenderer.nativeSetSettings(
+            speed      = p.speed,
+            fps        = p.fps,
+            bgMode     = p.bgMode,
+            bgR        = p.bgColorR,
+            bgG        = p.bgColorG,
+            bgB        = p.bgColorB,
+            noGround   = p.noGround,
+            orbScale   = p.orbScale,
+            orbCount   = p.orbCount,
+            cubeChance = p.cubeChance
+        )
+    }
+
+    private suspend fun prepareBgAndCube() = withContext(Dispatchers.IO) {
+        val p = OrbitPrefs(this@FullscreenPreviewActivity)
+        val bgBitmap: Bitmap? = when (p.bgMode) {
+            OrbitPrefs.BG_IMAGE -> p.bgImageUri?.let { loadBitmapFromUri(it) }
+            else -> null
         }
-    } catch (_: Exception) { null }
-    private fun ensureArgb8888(bmp: Bitmap): Bitmap =
-        if (bmp.config == Bitmap.Config.ARGB_8888) bmp
+        bgBitmap?.let { OrbitRenderer.nativeSetBgBitmap(ensureArgb8888(it)) }
+        val cubeBitmap: Bitmap? = p.cubeImageUri?.let { uri ->
+            loadBitmapFromUri(uri)?.let { squareCrop(it) }
+        }
+        cubeBitmap?.let { OrbitRenderer.nativeSetCubeBitmap(ensureArgb8888(it)) }
+    }
+    private fun loadBitmapFromUri(uriString: String): Bitmap? {
+        return try {
+            val uri = Uri.parse(uriString)
+            contentResolver.openInputStream(uri)?.use {
+                android.graphics.BitmapFactory.decodeStream(it)
+            }
+        } catch (e: Exception) { null }
+    }
+    private fun squareCrop(bmp: Bitmap): Bitmap {
+        val size = minOf(bmp.width, bmp.height)
+        return Bitmap.createScaledBitmap(bmp, size, size, true)
+    }
+    private fun ensureArgb8888(bmp: Bitmap): Bitmap {
+        return if (bmp.config == Bitmap.Config.ARGB_8888) bmp
         else bmp.copy(Bitmap.Config.ARGB_8888, false)
+    }
 }
