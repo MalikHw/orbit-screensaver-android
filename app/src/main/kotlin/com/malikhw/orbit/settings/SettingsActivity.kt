@@ -21,6 +21,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,8 +53,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -163,6 +166,7 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
 
     var updateState by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
     var saveToast   by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     var previewInOverlay by rememberSaveable { mutableStateOf(false) }
     val previewOverlayVisibility = remember { MutableTransitionState(false) }
@@ -289,8 +293,8 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
                         }
                     },
                     actions = {
-                        IconButton(onClick = { save() }) {
-                            Icon(Icons.Default.Save, "Save")
+                        IconButton(onClick = { showAboutDialog = true }) {
+                            Icon(Icons.Default.Info, "Info")
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -536,30 +540,7 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
 
             // links
             SectionCard("Author") {
-                val links = listOf(
-                    "Website" to "https://malikhw.github.io",
-                    "YouTube" to "https://youtube.com/@MalikHw47",
-                    "GitHub"  to "https://github.com/MalikHw",
-                    "Twitch"  to "https://twitch.tv/MalikHw47",
-                    "Discord" to "https://discord.gg/G9bZ92eg2n",
-                    "Throne"  to "https://throne.com/MalikHw47",
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    links.chunked(3).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            row.forEach { (label, url) ->
-                                OutlinedButton(
-                                    onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
-                                    modifier = Modifier.weight(1f).tvFocusBorder(),
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
-                                ) { Text(label, fontSize = 12.sp) }
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(4.dp))
-                    DonateButton(activity = activity)
-                }
+                DonateButton(activity = activity)
             }
 
             // bottom save
@@ -675,6 +656,86 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
             }
         }
     }
+
+        if (showAboutDialog) {
+            Dialog(onDismissRequest = { showAboutDialog = false }) {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(8.dp)
+                ) {
+                    val links = remember {
+                        buildList {
+                            add("Website" to "https://malikhw.github.io")
+                            add("YouTube" to "https://youtube.com/@MalikHw47")
+                            add("GitHub" to "https://github.com/MalikHw")
+                            add("Twitch" to "https://twitch.tv/MalikHw47")
+                            add("Discord" to "https://discord.gg/G9bZ92eg2n")
+                            add("Throne" to "https://throne.com/MalikHw47")
+                            if (!BuildConfig.FLAVOR.lowercase().contains("playstore")) {
+                                add("Ko-fi" to "https://ko-fi.com/MalikHw47")
+                            }
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val pfpResId = remember { context.resources.getIdentifier("pfp", "drawable", context.packageName) }
+                        if (pfpResId != 0) {
+                            Image(
+                                painter = painterResource(id = pfpResId),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(92.dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), CircleShape)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                modifier = Modifier
+                                    .size(92.dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), CircleShape)
+                                    .padding(18.dp)
+                            )
+                        }
+                        Text(
+                            "By MalikHw47, a geometry dash player/level creator, a Geode modder, and a developer",
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            links.chunked(3).forEach { row ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    row.forEach { (label, url) ->
+                                        OutlinedButton(
+                                            onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+                                            modifier = Modifier.weight(1f).tvFocusBorder(),
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                                        ) { Text(label, fontSize = 12.sp) }
+                                    }
+                                }
+                            }
+                        }
+
+                        TextButton(
+                            onClick = { showAboutDialog = false },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("Close", color = Color.Gray, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
 
         if (previewInOverlay) {
             AnimatedVisibility(

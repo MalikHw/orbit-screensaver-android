@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -82,6 +83,7 @@ private fun DonationDialog(activity: Activity, onDismiss: () -> Unit, onSuccess:
 
     // track whether the user tapped a tier so we can show a waiting indicator
     var purchasing by remember { mutableStateOf(false) }
+    var showPublishingInfo by remember { mutableStateOf(false) }
 
     DisposableEffect(Unit) {
         helper.connect(scope)
@@ -99,6 +101,14 @@ private fun DonationDialog(activity: Activity, onDismiss: () -> Unit, onSuccess:
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start
+                ) {
+                    IconButton(onClick = { showPublishingInfo = true }) {
+                        Icon(Icons.Default.Info, contentDescription = "Info", tint = Color.Gray)
+                    }
+                }
                 Icon(
                     Icons.Default.Favorite,
                     contentDescription = null,
@@ -173,5 +183,21 @@ private fun DonationDialog(activity: Activity, onDismiss: () -> Unit, onSuccess:
                 }
             }
         }
+    }
+
+    if (showPublishingInfo) {
+        AlertDialog(
+            onDismissRequest = { showPublishingInfo = false },
+            confirmButton = {
+                TextButton(onClick = { showPublishingInfo = false }) {
+                    Text("OK")
+                }
+            },
+            text = {
+                Text(
+                    "This app is published under my friend's google account since i can't afford $25, by your support of donating i can reach it and make this app listed under my Play Console! + helping the development of this + other things i make :)"
+                )
+            }
+        )
     }
 }
