@@ -127,16 +127,16 @@ class DonateHelper(private val context: Context, private val onPurchaseSuccess: 
             .build()
 
         val result = withContext(Dispatchers.IO) {
-            suspendCancellableCoroutine<Pair<BillingResult, List<ProductDetails>?>> { cont ->
-                client.queryProductDetailsAsync(params) { billingResult, productDetailsList ->
-                    cont.resume(Pair(billingResult, productDetailsList)) {}
+            suspendCancellableCoroutine<Pair<BillingResult, QueryProductDetailsResult>> { cont ->
+                client.queryProductDetailsAsync(params) { billingResult, queryProductDetailsResult ->
+                    cont.resume(Pair(billingResult, queryProductDetailsResult)) {}
                 }
             }
         }
 
         if (result.first.responseCode == BillingClient.BillingResponseCode.OK) {
             // Sort by price ascending so cheapest is first
-            _products.value = (result.second ?: emptyList())
+            _products.value = result.second.productDetailsList
                 .sortedBy { it.oneTimePurchaseOfferDetails?.priceAmountMicros ?: Long.MAX_VALUE }
         } else {
             _state.value = State.Error("Could not load donation tiers")
