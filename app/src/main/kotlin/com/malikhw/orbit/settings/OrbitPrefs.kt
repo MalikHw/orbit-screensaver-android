@@ -74,4 +74,8 @@ class OrbitPrefs(context: Context) {
     var autoUpdateCheck: Boolean
         get()  = prefs.getBoolean("auto_update_check", true)
         set(v) = prefs.edit { putBoolean("auto_update_check", v) }
+
+    var hasDonated: Boolean
+        get()  = prefs.getBoolean("has_donated", false)
+        set(v) = prefs.edit { putBoolean("has_donated", v) }
 }

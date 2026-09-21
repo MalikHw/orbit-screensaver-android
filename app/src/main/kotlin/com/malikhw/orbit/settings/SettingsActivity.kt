@@ -68,6 +68,15 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import android.os.Build
+import androidx.compose.material3.dynamicDarkColorScheme
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.interstitial.InterstitialAd
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.malikhw.orbit.BuildConfig
 import com.malikhw.orbit.dream.OrbitRenderer
 import com.malikhw.orbit.update.UpdateChecker
@@ -112,6 +121,9 @@ class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         actionBar?.hide()
+        try {
+            MobileAds.initialize(this) {}
+        } catch (_: Exception) {}
         setContent {
             OrbitTheme {
                 val scrollState = rememberScrollState()
@@ -126,8 +138,11 @@ class SettingsActivity : ComponentActivity() {
 
 @Composable
 fun OrbitTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
+    val context = LocalContext.current
+    val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        dynamicDarkColorScheme(context)
+    } else {
+        darkColorScheme(
             primary      = Color(0xFF64B5F6),
             secondary    = Color(0xFF81C784),
             background   = Color(0xFF121212),
@@ -135,7 +150,10 @@ fun OrbitTheme(content: @Composable () -> Unit) {
             onPrimary    = Color.Black,
             onBackground = Color.White,
             onSurface    = Color.White,
-        ),
+        )
+    }
+    MaterialTheme(
+        colorScheme = colorScheme,
         content = content
     )
 }
@@ -249,6 +267,32 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
 
     BackHandler(enabled = fullscreenVisible) { exitPreviewFullscreen() }
 
+    var interstitialAd by remember { mutableStateOf<InterstitialAd?>(null) }
+
+    fun loadInterstitial() {
+        if (prefs.hasDonated) return
+        val adRequest = AdRequest.Builder().build()
+        InterstitialAd.load(
+            context,
+            BuildConfig.ADMOB_INTERSTITIAL,
+            adRequest,
+            object : InterstitialAdLoadCallback() {
+                override fun onAdLoaded(ad: InterstitialAd) {
+                    interstitialAd = ad
+                }
+                override fun onAdFailedToLoad(error: LoadAdError) {
+                    interstitialAd = null
+                }
+            }
+        )
+    }
+
+    LaunchedEffect(prefs.hasDonated) {
+        if (!prefs.hasDonated) {
+            loadInterstitial()
+        }
+    }
+
     fun pickBgImage() {
         activity.launchImagePicker { uri ->
             uri?.let {
@@ -279,6 +323,16 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
         prefs.orbCount   = orbCount
         prefs.cubeChance = cubeChance
         saveToast = true
+
+        if (!prefs.hasDonated) {
+            interstitialAd?.let { ad ->
+                ad.show(activity)
+                interstitialAd = null
+                loadInterstitial()
+            } ?: run {
+                loadInterstitial()
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -302,6 +356,19 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
                     )
                 )
             },
+            bottomBar = {
+                if (!prefs.hasDonated) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AdBanner()
+                    }
+                }
+            },
             containerColor = MaterialTheme.colorScheme.background
         ) { padding ->
         Column(
@@ -312,6 +379,15 @@ fun SettingsScreen(activity: SettingsActivity, scrollState: ScrollState = rememb
                 .focusable(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+
+            Text(
+                text = if (prefs.hasDonated) "Donors will not get ANY ads (Ads disabled - Thank you!)" else "Donors will not get ANY ads",
+                style = MaterialTheme.typography.bodySmall,
+                fontStyle = FontStyle.Italic,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
 
             // chromebook warning
             if (isChromebook) {
@@ -1133,4 +1209,19 @@ fun OrbitPreview(
             holder = null
         }
     }
+}
+
+@Composable
+fun AdBanner(modifier: Modifier = Modifier) {
+    val bannerAdUnitId = BuildConfig.ADMOB_BANNER_BOTTOM
+    AndroidView(
+        modifier = modifier.fillMaxWidth(),
+        factory = { ctx ->
+            AdView(ctx).apply {
+                setAdSize(AdSize.BANNER)
+                adUnitId = bannerAdUnitId
+                loadAd(AdRequest.Builder().build())
+            }
+        }
+    )
 }

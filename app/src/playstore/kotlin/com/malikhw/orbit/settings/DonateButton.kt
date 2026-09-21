@@ -17,13 +17,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.platform.LocalContext
 import com.malikhw.orbit.billing.DonateHelper
 import kotlinx.coroutines.delay
 
 @Composable
 fun DonateButton(activity: Activity) {
-    var showDialog  by remember { mutableStateOf(false) }
-    var showWToast  by remember { mutableStateOf(false) }
+    val context    = LocalContext.current
+    val prefs      = remember { OrbitPrefs(context) }
+    var showDialog by remember { mutableStateOf(false) }
+    var showWToast by remember { mutableStateOf(false) }
 
     Button(
         onClick = { showDialog = true },
@@ -40,6 +43,7 @@ fun DonateButton(activity: Activity) {
             activity  = activity,
             onDismiss = { showDialog = false },
             onSuccess = {
+                prefs.hasDonated = true
                 showDialog = false
                 showWToast = true
             }

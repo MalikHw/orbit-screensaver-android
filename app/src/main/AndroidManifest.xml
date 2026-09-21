@@ -17,6 +17,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Orbit.Splash">
 
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="${ADMOB_APP_ID}" />
+
         <activity
             android:name=".settings.SettingsActivity"
             android:exported="true"
