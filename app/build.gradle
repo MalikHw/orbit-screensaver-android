@@ -22,8 +22,8 @@ android {
         applicationId "com.malikhw.orbit"
         minSdk 21
         targetSdk 37
-        versionCode 84
-        versionName "20260921-141858"
+        versionCode 85
+        versionName "20260921-142934"
 
         manifestPlaceholders = [ADMOB_APP_ID: "ca-app-pub-3940256099942544~3347511713"]
 
