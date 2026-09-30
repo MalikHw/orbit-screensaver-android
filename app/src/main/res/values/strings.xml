@@ -2,4 +2,102 @@
 <resources>
     <string name="app_name">Orbit Screensaver</string>
     <string name="dream_label">Orbit</string>
+
+    <string name="author_subtitle">by MalikHw47</string>
+    <string name="cd_info">Info</string>
+
+    <string name="donor_no_ads">Donors will not get ANY ads</string>
+    <string name="donor_ads_disabled">Donors will not get ANY ads (Ads disabled - Thank you!)</string>
+
+    <string name="chromebook_detected_title">Chromebook detected</string>
+    <string name="chromebook_detected_desc">This is not supported on Chrome OS. The screensaver won\'t activate. (not my fault forgive me 💀)</string>
+    <string name="cd_dismiss">Dismiss</string>
+
+    <string name="tv_mode_title">TV / D-pad mode</string>
+    <string name="tv_mode_desc">Use D-pad or gamepad to navigate. Press Center/A to interact.</string>
+
+    <string name="section_physics">Physics</string>
+    <string name="section_orbs">Orbs</string>
+    <string name="section_cube">Cube</string>
+    <string name="section_background">Background</string>
+    <string name="section_updates">Updates</string>
+    <string name="section_author">Author</string>
+    <string name="section_preview">Preview</string>
+
+    <string name="speed_label">Speed: %1$d</string>
+    <string name="fps_label">FPS: %1$d</string>
+    <string name="fps_30">30</string>
+    <string name="fps_60">60</string>
+    <string name="fps_90">90</string>
+    <string name="fps_120">120</string>
+    <string name="fps_165">165</string>
+    <string name="infinite_fall">Infinite fall</string>
+
+    <string name="count_label">Count: %1$d</string>
+    <string name="orb_count_low">Low</string>
+    <string name="orb_count_med">Med</string>
+    <string name="orb_count_high">High</string>
+    <string name="orb_count_giga">Giga</string>
+    <string name="size_label">Size: %1$s×</string>
+    <string name="size_s">S</string>
+    <string name="size_m">M</string>
+    <string name="size_l">L</string>
+    <string name="size_xl">XL</string>
+
+    <string name="cube_spawn_chance_label">Spawn chance: %1$d%%</string>
+    <string name="custom_cube_image">custom cube image</string>
+    <string name="using_bundled_default">Using bundled default</string>
+    <string name="btn_browse">Browse</string>
+    <string name="btn_reset">Reset</string>
+
+    <string name="bg_black">Black</string>
+    <string name="bg_color">Color</string>
+    <string name="bg_image">Image</string>
+    <string name="background_image">Background image</string>
+    <string name="none_selected">None selected</string>
+    <string name="color_channel_r">R</string>
+    <string name="color_channel_g">G</string>
+    <string name="color_channel_b">B</string>
+
+    <string name="btn_check_for_updates">Check for updates</string>
+    <string name="status_checking">Checking…</string>
+    <string name="status_error">Error: %1$s</string>
+    <string name="error_could_not_reach_github">Could not reach GitHub</string>
+    <string name="btn_retry">Retry</string>
+    <string name="status_up_to_date">✓ You\'re up to date! (%1$s)</string>
+    <string name="status_update_available">Update available: %1$s</string>
+    <string name="btn_download_install">Download &amp; Install</string>
+    <string name="status_downloading">Downloading… %1$d%%</string>
+    <string name="error_download_failed">Download failed: %1$s</string>
+
+    <string name="btn_save_settings">Save Settings</string>
+    <string name="toast_saved">Saved!</string>
+    <string name="btn_open_screensaver_settings">Open Android Screensaver Settings</string>
+    <string name="toast_screensaver_settings_not_supported">Couldn\'t open screensaver settings...\nNot supported on this device :(</string>
+    <string name="error_screensaver_settings_unsupported">Couldn\'t open screensaver settings on this device, Maybe your device manufacturer deleted the screensaver feature from your phone 🥀</string>
+
+    <string name="preview_description">Live screensaver preview — reacts to your settings</string>
+    <string name="cd_preview_fullscreen">Preview fullscreen</string>
+    <string name="cd_exit_fullscreen">Exit fullscreen</string>
+    <string name="disclaimer_text">Disclaimer: some assets are NOT by me, they\'re by RobtopGames from the game Geometry Dash.</string>
+
+    <string name="about_bio">By MalikHw47, a geometry dash player/level creator, a Geode modder, and a developer</string>
+    <string name="btn_close">Close</string>
+    <string name="link_website">Website</string>
+    <string name="link_youtube">YouTube</string>
+    <string name="link_github">GitHub</string>
+    <string name="link_twitch">Twitch</string>
+    <string name="link_discord">Discord</string>
+    <string name="link_throne">Throne</string>
+    <string name="link_kofi">Ko-fi</string>
+
+    <string name="btn_donate">Donate</string>
+    <string name="toast_w_bro">W Bro!</string>
+    <string name="donate_dialog_title">Support Orbit</string>
+    <string name="donate_waiting_payment">Waiting for payment…</string>
+    <string name="donate_loading_tiers">Loading tiers…</string>
+    <string name="donate_how_much">How much?</string>
+    <string name="donate_maybe_later">Maybe later</string>
+    <string name="btn_ok">OK</string>
+    <string name="donate_publishing_info_desc">This app is published under my friend\'s google account since i can\'t afford $25, by your support of donating i can reach it and make this app listed under my Play Console! + helping the development of this + other things i make :)</string>
 </resources>

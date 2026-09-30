@@ -12,19 +12,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
+import com.malikhw.orbit.R
 import com.malikhw.orbit.billing.DonateHelper
 import kotlinx.coroutines.delay
 
 @Composable
 fun DonateButton(activity: Activity) {
-    val context    = LocalContext.current
-    val prefs      = remember { OrbitPrefs(context) }
+    val context = LocalContext.current
+    val prefs = remember { OrbitPrefs(context) }
     var showDialog by remember { mutableStateOf(false) }
     var showWToast by remember { mutableStateOf(false) }
 
@@ -35,12 +37,12 @@ fun DonateButton(activity: Activity) {
     ) {
         Icon(Icons.Default.Favorite, contentDescription = null)
         Spacer(Modifier.width(8.dp))
-        Text("Donate", fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.btn_donate), fontWeight = FontWeight.Bold)
     }
 
     if (showDialog) {
         DonationDialog(
-            activity  = activity,
+            activity = activity,
             onDismiss = { showDialog = false },
             onSuccess = {
                 prefs.hasDonated = true
@@ -64,7 +66,7 @@ fun DonateButton(activity: Activity) {
                 tonalElevation = 8.dp
             ) {
                 Text(
-                    "W Bro!",
+                    stringResource(R.string.toast_w_bro),
                     modifier = Modifier.padding(horizontal = 28.dp, vertical = 12.dp),
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
@@ -77,13 +79,13 @@ fun DonateButton(activity: Activity) {
 
 @Composable
 private fun DonationDialog(activity: Activity, onDismiss: () -> Unit, onSuccess: () -> Unit) {
-    val scope   = rememberCoroutineScope()
-    val helper  = remember {
+    val scope = rememberCoroutineScope()
+    val helper = remember {
         DonateHelper(activity, onPurchaseSuccess = onSuccess)
     }
 
     val products by helper.products.collectAsState()
-    val state    by helper.state.collectAsState()
+    val state by helper.state.collectAsState()
 
     // track whether the user tapped a tier so we can show a waiting indicator
     var purchasing by remember { mutableStateOf(false) }
@@ -96,12 +98,12 @@ private fun DonationDialog(activity: Activity, onDismiss: () -> Unit, onSuccess:
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            shape     = RoundedCornerShape(20.dp),
-            colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(8.dp)
         ) {
             Column(
-                modifier            = Modifier.padding(24.dp),
+                modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -110,18 +112,22 @@ private fun DonationDialog(activity: Activity, onDismiss: () -> Unit, onSuccess:
                     horizontalArrangement = Arrangement.Start
                 ) {
                     IconButton(onClick = { showPublishingInfo = true }) {
-                        Icon(Icons.Default.Info, contentDescription = "Info", tint = Color.Gray)
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = stringResource(R.string.cd_info),
+                            tint = Color.Gray
+                        )
                     }
                 }
                 Icon(
                     Icons.Default.Favorite,
                     contentDescription = null,
-                    tint     = Color(0xFFFF6B35),
+                    tint = Color(0xFFFF6B35),
                     modifier = Modifier.size(36.dp)
                 )
                 Text(
-                    "Support Orbit",
-                    style      = MaterialTheme.typography.titleMedium,
+                    stringResource(R.string.donate_dialog_title),
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
 
@@ -130,48 +136,64 @@ private fun DonationDialog(activity: Activity, onDismiss: () -> Unit, onSuccess:
                         // waiting for Google Play to come back
                         CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
                         Text(
-                            "Waiting for payment…",
+                            stringResource(R.string.donate_waiting_payment),
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.Gray
                         )
                     }
+
                     state is DonateHelper.State.Error -> {
                         Text(
                             (state as DonateHelper.State.Error).message,
-                            color     = MaterialTheme.colorScheme.error,
-                            style     = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
                             textAlign = TextAlign.Center
                         )
                     }
+
                     products.isEmpty() -> {
                         CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
-                        Text("Loading tiers…", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text(
+                            stringResource(R.string.donate_loading_tiers),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
                     }
+
                     else -> {
-                        Text("How much?", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                        Text(
+                            stringResource(R.string.donate_how_much),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray
+                        )
                         Spacer(Modifier.height(4.dp))
                         products.forEach { product ->
-                            val name  = product.name
+                            val name = product.name
                             val price = product.oneTimePurchaseOfferDetails?.formattedPrice ?: "—"
 
                             OutlinedButton(
                                 onClick = {
                                     purchasing = true
                                     helper.launchPurchase(activity, product)
-                                    // NOTE: do NOT call onDismiss here, we wait for the onPurchaseSuccess callback so acknowledgement completes first so users happy
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                shape    = RoundedCornerShape(12.dp),
-                                border   = BorderStroke(1.dp, Color(0xFFFF6B35).copy(alpha = 0.6f))
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, Color(0xFFFF6B35).copy(alpha = 0.6f))
                             ) {
                                 Row(
-                                    modifier              = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment     = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(name,  style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                                    Text(price, style = MaterialTheme.typography.bodyMedium,
-                                        color  = Color(0xFFFF6B35), fontWeight = FontWeight.Bold)
+                                    Text(
+                                        name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        price, style = MaterialTheme.typography.bodyMedium,
+                                        color = Color(0xFFFF6B35), fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
@@ -180,10 +202,10 @@ private fun DonationDialog(activity: Activity, onDismiss: () -> Unit, onSuccess:
 
                 Spacer(Modifier.height(4.dp))
                 TextButton(
-                    onClick  = onDismiss,
+                    onClick = onDismiss,
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text("Maybe later", color = Color.Gray, fontSize = 12.sp)
+                    Text(stringResource(R.string.donate_maybe_later), color = Color.Gray, fontSize = 12.sp)
                 }
             }
         }
@@ -194,12 +216,12 @@ private fun DonationDialog(activity: Activity, onDismiss: () -> Unit, onSuccess:
             onDismissRequest = { showPublishingInfo = false },
             confirmButton = {
                 TextButton(onClick = { showPublishingInfo = false }) {
-                    Text("OK")
+                    Text(stringResource(R.string.btn_ok))
                 }
             },
             text = {
                 Text(
-                    "This app is published under my friend's google account since i can't afford $25, by your support of donating i can reach it and make this app listed under my Play Console! + helping the development of this + other things i make :)"
+                    stringResource(R.string.donate_publishing_info_desc)
                 )
             }
         )
